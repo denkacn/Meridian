@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33723.286
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeridianServer", "MeridianServer.csproj", "{9B1B319E-5430-4AB9-8CFB-3B0DF29CBA93}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeridianServerLib", "..\MeridianServerLib\MeridianServerLib\MeridianServerLib.csproj", "{4BF83081-8BFF-4CD0-A96D-7DF5435FC391}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9B1B319E-5430-4AB9-8CFB-3B0DF29CBA93}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9B1B319E-5430-4AB9-8CFB-3B0DF29CBA93}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9B1B319E-5430-4AB9-8CFB-3B0DF29CBA93}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9B1B319E-5430-4AB9-8CFB-3B0DF29CBA93}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4BF83081-8BFF-4CD0-A96D-7DF5435FC391}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4BF83081-8BFF-4CD0-A96D-7DF5435FC391}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4BF83081-8BFF-4CD0-A96D-7DF5435FC391}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4BF83081-8BFF-4CD0-A96D-7DF5435FC391}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {EC0C3522-B5FA-493D-BED3-6435AFBAD475}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Newtonsoft.Json" Version="13.0.2-beta2" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="NetCoreServer" />
+      <Folder Include="Exceptions\" />
+    </ItemGroup>
+
+    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+      <Exec Command="xcopy &quot;$(TargetPath)&quot; &quot;G:\Projects\PuzikiGames\Tests\TestNetCoreClient\TestNetCoreClient\Assets\Plugins&quot; /Y" />
+    </Target>
+
+</Project>

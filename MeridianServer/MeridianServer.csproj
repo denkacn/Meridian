@@ -1,0 +1,60 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net8.0-windows7.0</TargetFramework>
+        <UseWindowsForms>true</UseWindowsForms>
+        <AssemblyVersion>1.0.1.50</AssemblyVersion>
+        <FileVersion>1.0.1.50</FileVersion>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+      <ShouldCreateLogs>True</ShouldCreateLogs>
+      <AdvancedSettingsExpanded>False</AdvancedSettingsExpanded>
+      <UpdateAssemblyVersion>True</UpdateAssemblyVersion>
+      <UpdateAssemblyFileVersion>True</UpdateAssemblyFileVersion>
+      <UpdateAssemblyInfoVersion>False</UpdateAssemblyInfoVersion>
+      <AssemblyVersionSettings>None.None.IncrementOnDemandWithResetOnIncrease.IncrementWithResetOnIncrease</AssemblyVersionSettings>
+      <UpdatePackageVersion>False</UpdatePackageVersion>
+      <AssemblyInfoVersionType>SettingsVersion</AssemblyInfoVersionType>
+      <InheritWinAppVersionFrom>None</InheritWinAppVersionFrom>
+      <AssemblyFileVersionSettings>None.None.IncrementOnDemandWithResetOnIncrease.IncrementWithResetOnIncrease</AssemblyFileVersionSettings>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+      <ShouldCreateLogs>True</ShouldCreateLogs>
+      <AdvancedSettingsExpanded>False</AdvancedSettingsExpanded>
+      <UpdateAssemblyVersion>True</UpdateAssemblyVersion>
+      <UpdateAssemblyFileVersion>True</UpdateAssemblyFileVersion>
+      <UpdateAssemblyInfoVersion>False</UpdateAssemblyInfoVersion>
+      <AssemblyVersionSettings>None.None.IncrementOnDemandWithResetOnIncrease.IncrementWithResetOnIncrease</AssemblyVersionSettings>
+      <UpdatePackageVersion>False</UpdatePackageVersion>
+      <AssemblyInfoVersionType>SettingsVersion</AssemblyInfoVersionType>
+      <InheritWinAppVersionFrom>None</InheritWinAppVersionFrom>
+      <AssemblyFileVersionSettings>None.None.IncrementOnDemandWithResetOnIncrease.IncrementWithResetOnIncrease</AssemblyFileVersionSettings>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Reference Include="log4net">
+        <HintPath>Libs\log4net.dll</HintPath>
+      </Reference>
+      <Reference Include="MeridianServerLib">
+        <HintPath>..\MeridianServerLib\MeridianServerLib\bin\Debug\netstandard2.1\MeridianServerLib.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Update="log4net.config">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="ExternalLayer\Models\" />
+    </ItemGroup>
+
+</Project>

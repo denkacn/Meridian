@@ -1,0 +1,43 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <AssemblyVersion>1.0.0.44</AssemblyVersion>
+        <FileVersion>1.0.0.44</FileVersion>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+      <ShouldCreateLogs>True</ShouldCreateLogs>
+      <AdvancedSettingsExpanded>False</AdvancedSettingsExpanded>
+      <UpdateAssemblyVersion>True</UpdateAssemblyVersion>
+      <UpdateAssemblyFileVersion>True</UpdateAssemblyFileVersion>
+      <UpdateAssemblyInfoVersion>False</UpdateAssemblyInfoVersion>
+      <AssemblyVersionSettings>None.None.IncrementOnDemandWithResetOnIncrease.IncrementWithResetOnIncrease</AssemblyVersionSettings>
+      <UpdatePackageVersion>False</UpdatePackageVersion>
+      <AssemblyInfoVersionType>SettingsVersion</AssemblyInfoVersionType>
+      <InheritWinAppVersionFrom>None</InheritWinAppVersionFrom>
+      <AssemblyFileVersionSettings>None.None.IncrementOnDemandWithResetOnIncrease.IncrementWithResetOnIncrease</AssemblyFileVersionSettings>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+      <ShouldCreateLogs>True</ShouldCreateLogs>
+      <AdvancedSettingsExpanded>False</AdvancedSettingsExpanded>
+      <UpdateAssemblyVersion>True</UpdateAssemblyVersion>
+      <UpdateAssemblyFileVersion>True</UpdateAssemblyFileVersion>
+      <UpdateAssemblyInfoVersion>False</UpdateAssemblyInfoVersion>
+      <AssemblyVersionSettings>None.None.IncrementOnDemandWithResetOnIncrease.IncrementWithResetOnIncrease</AssemblyVersionSettings>
+      <UpdatePackageVersion>False</UpdatePackageVersion>
+      <AssemblyInfoVersionType>SettingsVersion</AssemblyInfoVersionType>
+      <InheritWinAppVersionFrom>None</InheritWinAppVersionFrom>
+      <AssemblyFileVersionSettings>None.None.IncrementOnDemandWithResetOnIncrease.IncrementWithResetOnIncrease</AssemblyFileVersionSettings>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Newtonsoft.Json" Version="13.0.2-beta2" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="NetCoreServer" />
+    </ItemGroup>
+
+</Project>
