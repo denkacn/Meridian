@@ -1,8 +1,6 @@
-﻿using System;
-using System.Net;
+﻿using System.Collections.Generic;
+using MeridianServer.TransportLayer.ApplicationProvider;
 using MeridianServer.TransportLayer.Interfaces;
-using MeridianServer.TransportLayer.NetCoreServerDomain;
-using MeridianServer.TransportLayer.NetCoreServerDomain.Sessions;
 using MeridianServerLib.Interfaces.Server;
 using MeridianServerLib.LogsLayer.Interfaces;
 
@@ -10,55 +8,43 @@ namespace MeridianServer.TransportLayer.Models
 {
     public class Transport : ITransport
     {
-        private readonly IServer _server;
-        private readonly ILogger _logger;
-        private readonly IMeridianApplication _applicationLogic;
-        
-        public Transport(TransportParams transportParams, IMeridianApplication applicationLogic, ILogger logger)
+	    private readonly ILogger _logger;
+        private readonly List<IApplicationProvider> _applicationProviders;
+
+        public Transport(MeridianApplicationConfiguration[] applicationConfigurations, ILogger logger)
         {
             _logger = logger;
-            _applicationLogic = applicationLogic;
-            _server = new ServerBase(IPAddress.Any, transportParams.Port, _logger).Setup();
-            
-            _server.StartedEventHandler += OnServerStarted;
-            _server.ConnectedEventHandler += OnServerConnected;
-            _server.StoppedEventHandler += OnServerStopped;
+            _applicationProviders = new List<IApplicationProvider>(applicationConfigurations.Length);
+
+			foreach (var configuration in applicationConfigurations)
+            {
+	            var transportParams = new TransportParams(configuration.Port);
+	            var applicationProvider =
+		            new BaseApplicationProvider(configuration.Id, transportParams, configuration.MeridianApplication, logger);
+
+	            _applicationProviders.Add(applicationProvider);
+            }
         }
 
         public void Start()
         {
-            _server.Start();
-        }
+			_applicationProviders.ForEach(a => a.Start());
+		}
 
         public void Stop()
         {
-            _server.Stop();
-        }
+			_applicationProviders.ForEach(a => a.Stop());
+		}
 
         public void Discard()
         {
-            if (_server.IsStarted)
-            {
-                _server.Stop();
-            }
-        }
-        
-        private void OnServerStarted(object sender, EventArgs e)
-        {
-            _logger?.Log("[Transport] OnServerStarted");
-            _applicationLogic.Setup();
-        }
-
-        private void OnServerStopped(object sender, EventArgs e)
-        {
-            _logger?.Log("[Transport] OnServerStopped");
-            _applicationLogic.Discard();
-        }
-
-        private void OnServerConnected(object sender, ServerPeerSession peerSession)
-        {
-            _logger?.Log("[Transport] OnServerConnected");
-            _applicationLogic.InitServerPeer(peerSession);
+	        foreach (var provider in _applicationProviders)
+	        {
+				if (provider.IsStarted)
+				{
+					provider.Stop();
+				}
+			}
         }
     }
 }

@@ -13,11 +13,13 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain
         public event EventHandler StartedEventHandler;
         public event EventHandler StoppedEventHandler;
         public event EventHandler<ServerPeerSession> ConnectedEventHandler;
-        
-        private readonly ILogger _logger;
 
-        public ServerBase(IPAddress address, int port, ILogger logger) : base(address, port)
+		private readonly string _id;
+		private readonly ILogger _logger;
+
+        public ServerBase(string id, IPAddress address, int port, ILogger logger) : base(address, port)
         {
+            _id = id;
 	        _logger = logger;
         }
 
@@ -40,18 +42,18 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain
 
         protected override TcpSession CreateSession()
         {
-            var session = new ServerPeerSession(this, _logger);
+            var session = new ServerPeerSession(_id, this, _logger);
             return session;
         }
 
         protected override void OnError(SocketError error)
         {
-            _logger?.Log($"[ServerBase] Server caught an error with code {error}");
+            _logger?.Log($"[ServerBase] ({_id}) Server caught an error with code {error}");
         }
 
         protected override void OnConnected(TcpSession session)
         {
-            _logger?.Log($"[ServerBase] OnConnected " + session.Id);
+            _logger?.Log($"[ServerBase] ({_id}) OnConnected " + session.Id);
             ConnectedEventHandler?.Invoke(this, (ServerPeerSession)session);
         }
     }

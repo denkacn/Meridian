@@ -27,18 +27,20 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         private readonly IBinaryEncoder<RpcData> _encoder;
         private readonly RpcDataConvertor _convertor;
 
+        private string _id;
         private bool _isBusy = false;
         private int _messageId = 0;
 
-        private readonly Queue<OperationData> _operationDatas;
+        private readonly Queue<OperationData> _operations;
 
-        private ISocketMessageComponator _socketMessageComponator;
+        private readonly ISocketMessageComponator _socketMessageComponator;
 
-        public ServerPeerSession(TcpServer server, ILogger logger) : base(server)
+        public ServerPeerSession(string id, TcpServer server, ILogger logger) : base(server)
         {
             SetLogger(logger);
 
-            _operationDatas = new Queue<OperationData>();
+            _id = id;
+			_operations = new Queue<OperationData>();
             _encoder = new JsonBinaryListEncoder<RpcData>();
             _convertor = new RpcDataConvertor();
 
@@ -49,7 +51,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
 
         public void Send(OperationData operationData)
         {
-            _operationDatas.Enqueue(operationData);
+            _operations.Enqueue(operationData);
 
             CheckOperationDataQueue();
         }
@@ -61,14 +63,14 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
 
         protected override void OnConnected(object userToken)
         {
-            _logger?.Log($"[NetworkSession] Session with Id {Id} connected! UserToken: " + userToken);
+            _logger?.Log($"[NetworkSession] ({_id}) Session with Id {Id} connected! UserToken: " + userToken);
 
             ConnectedEventHandler?.Invoke(this, EventArgs.Empty);
         }
 
         protected override void OnDisconnected()
         {
-            _logger?.Log($"[NetworkSession] Session with Id {Id} disconnected!");
+            _logger?.Log($"[NetworkSession] ({_id}) Session with Id {Id} disconnected!");
             
             DisconnectedEventHandler?.Invoke(this, EventArgs.Empty);
         }
@@ -77,7 +79,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         {
             try
             {
-                _logger?.Log("[ServerPeerSession MeridianEncoderException] OnReceived: " + buffer.Length + " size: " + size);
+                _logger?.Log($"[ServerPeerSession MeridianEncoderException] ({_id}) OnReceived: {buffer.Length} size: {size}");
 
                 _socketMessageComponator.Received(buffer, offset, size);    
                 //var message = new byte[size];
@@ -100,11 +102,11 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             }
             catch (MeridianEncoderException ex)
             {
-                _logger?.LogError("[ServerPeerSession MeridianEncoderException] Error Received", ex);
+                _logger?.LogError($"[ServerPeerSession MeridianEncoderException] ({_id}) Error Received", ex);
             }
             catch (Exception ex)
             {
-                _logger?.LogError("[ServerPeerSession] Error On Received", ex);
+                _logger?.LogError($"[ServerPeerSession] ({_id}) Error On Received", ex);
             }
         }
 
@@ -118,11 +120,11 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             }
             catch (MeridianEncoderException ex)
             {
-                _logger?.LogError("[ServerPeerSession MeridianEncoderException] Error Received", ex);
+                _logger?.LogError($"[ServerPeerSession MeridianEncoderException] ({_id}) Error Received", ex);
             }
             catch (Exception ex)
             {
-                _logger?.LogError("[ServerPeerSession] Error On Received", ex);
+                _logger?.LogError($"[ServerPeerSession] ({_id}) Error On Received", ex);
             }       
         }
 
@@ -146,16 +148,16 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
 
         protected override void OnError(SocketError error)
         {
-            _logger?.Log($"[NetworkSession] OnError Session caught an error with code {error}");
+            _logger?.Log($"[NetworkSession] ({_id}) OnError Session caught an error with code {error}");
 
             ErrorEventHandler?.Invoke(this, error.ToString());
         }
 
         private void CheckOperationDataQueue()
         {
-            if (!_isBusy && _operationDatas.Count > 0)
+            if (!_isBusy && _operations.Count > 0)
             {
-                DecodeAndSend(_operationDatas.Dequeue());
+                DecodeAndSend(_operations.Dequeue());
             }
         }
 
@@ -176,12 +178,12 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             }
             catch (MeridianEncoderException ex)
             {
-                _logger?.LogError("[ServerPeerSession MeridianEncoderException] Error Send", ex);
+                _logger?.LogError($"[ServerPeerSession MeridianEncoderException] ({_id}) Error Send", ex);
                 _isBusy = false;
             }
             catch (Exception ex)
             {
-                _logger?.LogError("[ServerPeerSession Exception] Error Send", ex);
+                _logger?.LogError($"[ServerPeerSession Exception] ({_id}) Error Send", ex);
                 _isBusy = false;
             }
         }

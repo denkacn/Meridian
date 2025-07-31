@@ -12,16 +12,14 @@ namespace MeridianServerLib.Models.Server
             var client = CreateClient(peerSession);
         }
 
-        void IMeridianApplication.Discard()
-        {
-        }
+        void IMeridianApplication.Discard(){}
 
         public void SendOutsideCommand(OutsideCommandType command)
         {
 	        MeridianApplicationCommand?.Invoke(command);
         }
 
-        public abstract void Setup();
+        public abstract void Setup(string id);
         public abstract ServerPeer CreateClient(IServerPeerSession peerSession);
     }
 }

@@ -2,8 +2,8 @@
 {
     public class ServerSettings
     {
-        public int Port = 4555;
-        public string PathToExternalApplicationLib;
+        public LayerSettings[] Layers;
+
         public bool IsDebugEnable;
         public bool IsAutoStart;
     }

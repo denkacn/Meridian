@@ -8,7 +8,7 @@ namespace MeridianServerLib.Interfaces.Server
 	    event Action<OutsideCommandType> MeridianApplicationCommand;
 
 		void InitServerPeer(IServerPeerSession peerSession);
-        void Setup();
+        void Setup(string id);
         ServerPeer CreateClient(IServerPeerSession transportClient);
         void Discard();
     }

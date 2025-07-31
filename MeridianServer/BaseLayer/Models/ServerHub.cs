@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using MeridianServer.BaseLayer.Interfaces;
@@ -21,7 +22,7 @@ namespace MeridianServer.BaseLayer.Models
         private IServerControl _serverControl;
         private ITransport _transport;
         private ServerSettings _serverSettings;
-        private IMeridianApplication _meridianApplication;
+        private List<MeridianApplicationConfiguration> _applicationConfigurations;
 
         private string BaseDirectory => AppDomain.CurrentDomain.BaseDirectory;
 
@@ -34,7 +35,7 @@ namespace MeridianServer.BaseLayer.Models
 
             InitSettingsLayer();
 
-            InitExternalLayer();
+            InitExternalLayers();
             
             InitServerControl();
             
@@ -97,23 +98,29 @@ namespace MeridianServer.BaseLayer.Models
 
         #region External Layer 
 
-        private void InitExternalLayer()
+        private void InitExternalLayers()
         {
-	        _meridianApplication =
-		        ExternalApplicationController.SearchExternalApplication(Path.Combine(BaseDirectory,
-			        _serverSettings.PathToExternalApplicationLib));
-            _meridianApplication.MeridianApplicationCommand += OnMeridianApplicationCommand;
+	        _applicationConfigurations = new List<MeridianApplicationConfiguration>();
 
-		}
+			foreach (var layer in _serverSettings.Layers)
+			{
+				var meridianApplication =
+					ExternalApplicationController.SearchExternalApplication(Path.Combine(BaseDirectory, layer.PathToExternalApplicationLib));
+
+				meridianApplication.MeridianApplicationCommand += OnMeridianApplicationCommand;
+
+				_applicationConfigurations.Add(new MeridianApplicationConfiguration(layer.LayerName, meridianApplication, layer.Port));
+			}
+        }
 
         private void DiscardExternalLayer()
         {
-	        if (_meridianApplication != null)
+	        foreach (var application in _applicationConfigurations)
 	        {
-		        _meridianApplication.MeridianApplicationCommand -= OnMeridianApplicationCommand;
-	        }
+		        application.MeridianApplication.MeridianApplicationCommand -= OnMeridianApplicationCommand;
+			}
 
-	        _meridianApplication = null;
+	        _applicationConfigurations = null;
 
         }
 
@@ -144,8 +151,8 @@ namespace MeridianServer.BaseLayer.Models
 
         private void InitTransportLayer()
         {
-            var transportParams = new TransportParams(_serverSettings.Port);
-            _transport = new Transport(transportParams, _meridianApplication, _serverSettings.IsDebugEnable ? LoggerExt.Logger : null);
+            _transport = new Transport(_applicationConfigurations.ToArray(),
+	            _serverSettings.IsDebugEnable ? LoggerExt.Logger : null);
         }
 
         private void DiscardTransportLayer()
