@@ -1,6 +1,5 @@
 using System;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using MeridianServer.BaseLayer.Interfaces;
 using MeridianServer.BaseLayer.Models;
@@ -17,7 +16,6 @@ namespace MeridianServer
         {
             LoggerExt.Init();
 
-            AllocConsole();
             SubscribingToUnhandledExceptions();
 
             LoggerExt.Log("MeridianServer version: " + Assembly.GetExecutingAssembly().GetName().Version);
@@ -34,9 +32,9 @@ namespace MeridianServer
             }
         }
         
-        [DllImport("kernel32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        static extern bool AllocConsole();
+        //[DllImport("kernel32.dll", SetLastError = true)]
+        //[return: MarshalAs(UnmanagedType.Bool)]
+        //static extern bool AllocConsole();
 
         static void SubscribingToUnhandledExceptions()
         {
@@ -54,6 +52,7 @@ namespace MeridianServer
 
                 Console.WriteLine("Wait Correct Abort...");
                 Console.ReadKey();
+
                 e.SetObserved();
             };
 

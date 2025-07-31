@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Threading.Tasks;
 using MeridianServer.BaseLayer.Interfaces;
 using MeridianServer.ControlLayer.Interfaces;
@@ -22,7 +23,10 @@ namespace MeridianServer.BaseLayer.Models
         private ServerSettings _serverSettings;
         private IMeridianApplication _meridianApplication;
 
-        public void Init()
+        private string BaseDirectory => AppDomain.CurrentDomain.BaseDirectory;
+
+
+		public void Init()
         {
             LoggerExt.Log("[ServerHub] Init");
 
@@ -86,7 +90,7 @@ namespace MeridianServer.BaseLayer.Models
 
         private void InitSettingsLayer()
         {
-            _serverSettings = DataLoader.Load<ServerSettings>(SETTING_FILE_PATH);
+	        _serverSettings = DataLoader.Load<ServerSettings>(Path.Combine(BaseDirectory, SETTING_FILE_PATH));
         }
 
         #endregion
@@ -95,7 +99,9 @@ namespace MeridianServer.BaseLayer.Models
 
         private void InitExternalLayer()
         {
-            _meridianApplication = ExternalApplicationController.SearchExternalApplication(_serverSettings.PathToExternalApplicationLib);
+	        _meridianApplication =
+		        ExternalApplicationController.SearchExternalApplication(Path.Combine(BaseDirectory,
+			        _serverSettings.PathToExternalApplicationLib));
             _meridianApplication.MeridianApplicationCommand += OnMeridianApplicationCommand;
 
 		}

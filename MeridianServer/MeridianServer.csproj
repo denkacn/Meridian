@@ -1,11 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <OutputType>WinExe</OutputType>
+        <OutputType>Exe</OutputType>
         <TargetFramework>net8.0-windows7.0</TargetFramework>
-        <UseWindowsForms>true</UseWindowsForms>
-        <AssemblyVersion>1.0.1.50</AssemblyVersion>
-        <FileVersion>1.0.1.50</FileVersion>
+        <UseWindowsForms>false</UseWindowsForms>
+        <AssemblyVersion>1.0.1.54</AssemblyVersion>
+        <FileVersion>1.0.1.54</FileVersion>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -35,9 +35,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <Reference Include="log4net">
-        <HintPath>Libs\log4net.dll</HintPath>
-      </Reference>
       <Reference Include="MeridianServerLib">
         <HintPath>..\MeridianServerLib\MeridianServerLib\bin\Debug\netstandard2.1\MeridianServerLib.dll</HintPath>
       </Reference>
@@ -50,6 +47,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <PackageReference Include="log4net" Version="3.1.0" />
       <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     </ItemGroup>
 

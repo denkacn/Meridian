@@ -1,7 +1,6 @@
 ﻿using System;
-using System.Drawing;
-using System.Threading;
-using System.Windows.Forms;
+//using System.Threading;
+//using System.Windows.Forms;
 using MeridianServer.ControlLayer.Interfaces;
 
 namespace MeridianServer.ControlLayer.Models
@@ -13,7 +12,7 @@ namespace MeridianServer.ControlLayer.Models
         public event EventHandler ServerRestartCommandEventHandler;
         public event EventHandler CloseCommandEventHandler;
 
-        private NotifyIcon _notificationIcon; 
+        //private NotifyIcon _notificationIcon; 
         
         public TrayIconServerControl()
         {
@@ -22,46 +21,46 @@ namespace MeridianServer.ControlLayer.Models
         
         private void CreateTrayIcon()
         {
-            var notifyThread = new Thread(
-                delegate()
-                {
-                    _notificationIcon = new NotifyIcon();
-                    _notificationIcon.Text = "MeridianServer";
-                    _notificationIcon.Icon = new Icon(SystemIcons.Application, 40, 40);
+     //       var notifyThread = new Thread(
+     //           delegate()
+     //           {
+     //               _notificationIcon = new NotifyIcon();
+     //               _notificationIcon.Text = "MeridianServer";
+     //               _notificationIcon.Icon = new Icon(SystemIcons.Application, 40, 40);
 
-                    _notificationIcon.ContextMenuStrip = new ContextMenuStrip();
+     //               _notificationIcon.ContextMenuStrip = new ContextMenuStrip();
                     
-                    _notificationIcon.ContextMenuStrip.Items.Add("Start Server", null, (sender, args) =>
-                    {
-                        ServerStartCommandEventHandler?.Invoke(this, args);
-                    });
+     //               _notificationIcon.ContextMenuStrip.Items.Add("Start Server", null, (sender, args) =>
+     //               {
+     //                   ServerStartCommandEventHandler?.Invoke(this, args);
+     //               });
 
-                    _notificationIcon.ContextMenuStrip.Items.Add("Stop Server", null, (sender, args) =>
-                    {
-                        ServerStopCommandEventHandler?.Invoke(this, args);
-                    });
+     //               _notificationIcon.ContextMenuStrip.Items.Add("Stop Server", null, (sender, args) =>
+     //               {
+     //                   ServerStopCommandEventHandler?.Invoke(this, args);
+     //               });
 
-                    _notificationIcon.ContextMenuStrip.Items.Add("Restart Server", null, (sender, args) =>
-                    {
-	                    ServerRestartCommandEventHandler?.Invoke(this, args);
-                    });
+     //               _notificationIcon.ContextMenuStrip.Items.Add("Restart Server", null, (sender, args) =>
+     //               {
+	    //                ServerRestartCommandEventHandler?.Invoke(this, args);
+     //               });
 
-					_notificationIcon.ContextMenuStrip.Items.Add("Close", null, (sender, args) =>
-                    {
-                        CloseCommandEventHandler?.Invoke(this, args);
+					//_notificationIcon.ContextMenuStrip.Items.Add("Close", null, (sender, args) =>
+     //               {
+     //                   CloseCommandEventHandler?.Invoke(this, args);
 
-                        _notificationIcon.Dispose();
+     //                   _notificationIcon.Dispose();
 
-                        Application.Exit();
-                    });
+     //                   Application.Exit();
+     //               });
 
-                    _notificationIcon.Visible = true;
+     //               _notificationIcon.Visible = true;
                     
-                    Application.Run();
-                }
-            );
+     //               Application.Run();
+     //           }
+     //       );
             
-            notifyThread.Start();
+     //       notifyThread.Start();
         }
     }
 }
