@@ -51,7 +51,7 @@ namespace MeridianServerLib.EncodingLayer.Encoders
 			catch (Exception ex)
 			{
 				logger?.LogError("[JsonBinaryListEncoder] DecodeAllFromBinary Decompress Error", ex);
-				throw new MeridianDecompressStringExpection(
+				throw new MeridianDecompressStringException(
 					"[JsonBinaryListEncoder] DecodeAllFromBinary Decompress Error", ex);
 			}
 

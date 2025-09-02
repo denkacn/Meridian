@@ -10,7 +10,6 @@ using MeridianServer.ExternalLayer.ResourcesLoader;
 using MeridianServer.LogsLayer;
 using MeridianServer.TransportLayer.Interfaces;
 using MeridianServer.TransportLayer.Models;
-using MeridianServerLib.Interfaces.Server;
 using MeridianServerLib.Models.Server;
 
 namespace MeridianServer.BaseLayer.Models

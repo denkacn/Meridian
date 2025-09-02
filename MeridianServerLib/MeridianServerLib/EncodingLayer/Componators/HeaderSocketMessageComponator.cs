@@ -4,6 +4,7 @@ using System;
 
 namespace MeridianServerLib.EncodingLayer.Componators
 {
+    [Obsolete("HeaderSocketMessageComponatorV3", true)]
     public class HeaderSocketMessageComponator : ISocketMessageComponator
     {
         public event Action<byte[]> OnReceivedMessage;

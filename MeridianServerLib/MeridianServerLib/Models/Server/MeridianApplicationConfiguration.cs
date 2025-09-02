@@ -1,4 +1,6 @@
-﻿namespace MeridianServerLib.Interfaces.Server
+﻿using MeridianServerLib.Interfaces.Server;
+
+namespace MeridianServerLib.Models.Server
 {
 	public class MeridianApplicationConfiguration
 	{

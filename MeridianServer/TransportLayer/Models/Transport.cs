@@ -1,8 +1,8 @@
 ﻿using System.Collections.Generic;
 using MeridianServer.TransportLayer.ApplicationProvider;
 using MeridianServer.TransportLayer.Interfaces;
-using MeridianServerLib.Interfaces.Server;
 using MeridianServerLib.LogsLayer.Interfaces;
+using MeridianServerLib.Models.Server;
 
 namespace MeridianServer.TransportLayer.Models
 {

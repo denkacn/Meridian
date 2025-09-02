@@ -24,16 +24,13 @@ namespace MeridianServerLib.EncodingLayer.Componators
 			_bufferCount = 0;
 		}
 
-		/// <summary>
-		/// Создание сообщения с заголовком
-		/// </summary>
 		public byte[] CreateMessageWithHeader(int messageId, byte[] message)
 		{
 			var totalSize = HeaderSize + message.Length;
 			var buffer = new byte[totalSize];
 
 			buffer[0] = StartSymbol;
-			buffer[1] = 0; // резерв / паддинг
+			buffer[1] = 0;
 
 			BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(2, 4), messageId);
 			BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(6, 4), totalSize);
@@ -46,9 +43,6 @@ namespace MeridianServerLib.EncodingLayer.Componators
 		}
 
 
-		/// <summary>
-		/// Получение данных из сокета (могут быть обрезаны или склеены)
-		/// </summary>
 		public void Received(byte[] data, int offset, int size)
 		{
 			EnsureCapacity(_bufferCount + size);

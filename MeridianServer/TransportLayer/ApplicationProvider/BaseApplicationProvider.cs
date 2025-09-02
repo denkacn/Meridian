@@ -5,7 +5,6 @@ using MeridianServer.TransportLayer.NetCoreServerDomain.Sessions;
 using MeridianServerLib.Interfaces.Server;
 using MeridianServerLib.LogsLayer.Interfaces;
 using System;
-using System.IO;
 using System.Net;
 
 namespace MeridianServer.TransportLayer.ApplicationProvider
