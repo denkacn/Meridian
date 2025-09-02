@@ -34,7 +34,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 		/// <summary>
 		/// Обрабатывает входящий буфер.
 		/// </summary>
-		public void Received(byte[] buffer, long offset, long size)
+		public void Received(byte[] buffer, int offset, int size)
 		{
 			if (buffer == null || buffer.Length < HeaderSize || size < HeaderSize)
 			{
@@ -42,7 +42,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 				return;
 			}
 
-			var span = new ReadOnlySpan<byte>(buffer, (int)offset, (int)size);
+			var span = new ReadOnlySpan<byte>(buffer, offset, size);
 			var (startSymbol, messageId, correctMessageSize) = ParseHeader(span);
 
 			if (startSymbol != StartSymbol)

@@ -8,6 +8,6 @@ namespace MeridianServerLib.EncodingLayer.Componators
     {
         event Action<byte[]> OnReceivedMessage;
         byte[] CreateMessageWithHeader(int messageId, byte[] message);
-        void Received(byte[] buffer, long offset, long size);
+        void Received(byte[] buffer, int offset, int size);
     }
 }

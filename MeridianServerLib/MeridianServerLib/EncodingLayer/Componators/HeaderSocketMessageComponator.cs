@@ -28,12 +28,12 @@ namespace MeridianServerLib.EncodingLayer.Componators
             var header = ByteArrayHelper.Combine(packStart, packId, packLength);
             var result = ByteArrayHelper.Combine(header, message);
 
-            _logger?.Log("[HeaderSocketMessageComponator] CreateMessageWithHeader " + result.Length);
+            _logger?.Log($"[HeaderSocketMessageComponator] CreateMessageWithHeader {result.Length}");
 
             return result;
         }
 
-        public void Received(byte[] buffer, long offset, long size)
+        public void Received(byte[] buffer, int offset, int size)
         {
             var startSymbolBytes = new byte[2];
             var idBytes = new byte[4];
@@ -48,7 +48,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
             var correctMessageSize = BitConverter.ToInt32(sizeBytes);
 
             var messageBytes = new byte[size];
-            Buffer.BlockCopy(buffer, 0, messageBytes, 0, (int)size);
+            Buffer.BlockCopy(buffer, 0, messageBytes, 0, size);
 
             _logger?.Log("[HeaderSocketMessageComponator] Received startSymbol: " + startSymbol + " size: " + size + " messageSize" + correctMessageSize + " messageBytes Length: " + messageBytes.Length);
 

@@ -5,6 +5,7 @@ using MeridianServer.TransportLayer.NetCoreServerDomain.Sessions;
 using MeridianServerLib.Interfaces.Server;
 using MeridianServerLib.LogsLayer.Interfaces;
 using System;
+using System.IO;
 using System.Net;
 
 namespace MeridianServer.TransportLayer.ApplicationProvider
@@ -14,14 +15,19 @@ namespace MeridianServer.TransportLayer.ApplicationProvider
 		public bool IsStarted => _server.IsStarted;
 
 		private readonly string _id;
+		private readonly string _path;
+
 		private readonly IServer _server;
 		private readonly ILogger _logger;
 		private readonly IMeridianApplication _applicationLogic;
 
-		public BaseApplicationProvider(string id, TransportParams transportParams, IMeridianApplication applicationLogic, ILogger logger)
+		public BaseApplicationProvider(string id, TransportParams transportParams, IMeridianApplication applicationLogic, string path, ILogger logger)
 		{
 			_id = id;
+			_path = path;
+
 			_logger = logger;
+
 			_applicationLogic = applicationLogic;
 			_server = new ServerBase(_id, IPAddress.Any, transportParams.Port, _logger).Setup();
 
@@ -52,7 +58,7 @@ namespace MeridianServer.TransportLayer.ApplicationProvider
 		{
 			_logger?.Log("[BaseApplicationProvider] OnServerStarted");
 
-			_applicationLogic.Setup(_id);
+			_applicationLogic.Setup(_id, _path);
 		}
 
 		private void OnServerStopped(object sender, EventArgs e)

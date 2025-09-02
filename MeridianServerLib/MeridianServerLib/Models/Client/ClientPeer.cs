@@ -36,7 +36,7 @@ namespace MeridianServerLib.Models.Client
             _networkClient = new NetworkClient(address, port, OnReceived, logger);
             _logger = logger;
 
-            _socketMessageComponator = new HeaderSocketMessageComponator(_logger);
+            _socketMessageComponator = new HeaderSocketMessageComponatorV3(_logger);
 
             _networkClient.ConnectionStatusChanged += OnConnectionStatusChanged;
             _socketMessageComponator.OnReceivedMessage += OnSocketMessageComponatorReceivedMessage;
@@ -96,7 +96,7 @@ namespace MeridianServerLib.Models.Client
 
         private void OnReceived(byte[] buffer, long offset, long size)
         {
-            _socketMessageComponator.Received(buffer, offset, size);    
+            _socketMessageComponator.Received(buffer, (int)offset, (int)size);    
         }
 
         private void OnSocketMessageComponatorReceivedMessage(byte[] message)
@@ -106,11 +106,6 @@ namespace MeridianServerLib.Models.Client
 	            var dataPack = _encoder.Encode(message, _logger);
 	            var operationData = _convertor.From(dataPack);
 	            _receiver?.OnOperationReceived(operationData);
-
-				//var dataPacks = _encoder.EncodeAll(message, _logger);
-
-    //            ProcessDataPacks(dataPacks);
-
             }
             catch (MeridianEncoderException ex)
             {
@@ -121,17 +116,6 @@ namespace MeridianServerLib.Models.Client
                 _logger?.LogError("[ClientPeer Exception] On Received", ex);
             }
         }
-
-        //private void ProcessDataPacks(RpcData[] dataPacks)
-        //{
-        //    //_logger.Log("[ClientPeer] ProcessDataPacks Length: " + dataPacks.Length);
-
-        //    foreach (var dataPack in dataPacks)
-        //    {
-        //        var operationData = _convertor.From(dataPack);
-        //        _receiver?.OnOperationReceived(operationData);
-        //    }
-        //}
 
         private void OnConnectionStatusChanged(NetworkClientConnectionStatus status) => ClientConnectionStatusChanged?.Invoke(status);
     }

@@ -44,7 +44,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             _encoder = new MessagePackEncoder<RpcData>();
             _convertor = new RpcDataConvertor();
 
-            _socketMessageComponator = new HeaderSocketMessageComponator(logger);
+            _socketMessageComponator = new HeaderSocketMessageComponatorV3(logger);
 
             _socketMessageComponator.OnReceivedMessage += OnSocketMessageComponatorReceivedMessage;
         }
@@ -81,7 +81,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             {
                 _logger?.Log($"[ServerPeerSession MeridianEncoderException] ({_id}) OnReceived: {buffer.Length} size: {size}");
 
-                _socketMessageComponator.Received(buffer, offset, size);
+                _socketMessageComponator.Received(buffer, (int)offset, (int)size);
             }
             catch (MeridianEncoderException ex)
             {
@@ -100,9 +100,6 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
                 var dataPack = _encoder.Encode(message, _logger);
                 var operationData = _convertor.From(dataPack);
 				_ = ReceivedEventAsync(operationData);
-
-				//var dataPacks = _encoder.EncodeAll(message, _logger);
-				//ProcessDataPacks(dataPacks);
 			}
             catch (MeridianEncoderException ex)
             {
@@ -113,15 +110,6 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
                 _logger?.LogError($"[ServerPeerSession] ({_id}) Error On Received", ex);
             }       
         }
-
-        //private void ProcessDataPacks(RpcData[] dataPacks)
-        //{
-        //    foreach (var dataPack in dataPacks)
-        //    {
-        //        var operationData = _convertor.From(dataPack);
-        //        _ = ReceivedEventAsync(operationData);
-        //    }
-        //}
 
         protected override void OnEmpty()
         {

@@ -20,7 +20,7 @@ namespace MeridianServer.TransportLayer.Models
             {
 	            var transportParams = new TransportParams(configuration.Port);
 	            var applicationProvider =
-		            new BaseApplicationProvider(configuration.Id, transportParams, configuration.MeridianApplication, logger);
+		            new BaseApplicationProvider(configuration.Id, transportParams, configuration.MeridianApplication, configuration.Path, logger);
 
 	            _applicationProviders.Add(applicationProvider);
             }

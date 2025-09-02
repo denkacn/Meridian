@@ -43,10 +43,10 @@ namespace MeridianServer.BaseLayer.Models
             
             LoggerExt.Log("[ServerHub] Server Init End");
 
-            _ = TryAutoStart();
+            _ = TryAutoStartAsync();
         }
 
-		private async Task TryAutoStart()
+		private async Task TryAutoStartAsync()
 		{
 			if (_serverSettings.IsAutoStart)
 			{
@@ -104,12 +104,15 @@ namespace MeridianServer.BaseLayer.Models
 
 			foreach (var layer in _serverSettings.Layers)
 			{
+                var path = Path.Combine(BaseDirectory, layer.PathToExternalApplicationLib);
 				var meridianApplication =
-					ExternalApplicationController.SearchExternalApplication(Path.Combine(BaseDirectory, layer.PathToExternalApplicationLib));
+					ExternalApplicationController.SearchExternalApplication(path);
 
 				meridianApplication.MeridianApplicationCommand += OnMeridianApplicationCommand;
 
-				_applicationConfigurations.Add(new MeridianApplicationConfiguration(layer.LayerName, meridianApplication, layer.Port));
+                Console.WriteLine("[ServerHub] Load layer: " + layer.LayerName + " from " + layer.PathToExternalApplicationLib);
+
+				_applicationConfigurations.Add(new MeridianApplicationConfiguration(layer.LayerName, meridianApplication, layer.Port, path));
 			}
         }
 

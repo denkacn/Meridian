@@ -19,7 +19,7 @@ namespace MeridianServerLib.Models.Server
 	        MeridianApplicationCommand?.Invoke(command);
         }
 
-        public abstract void Setup(string id);
+        public abstract void Setup(string id, string path);
         public abstract ServerPeer CreateClient(IServerPeerSession peerSession);
     }
 }

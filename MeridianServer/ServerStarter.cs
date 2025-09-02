@@ -30,6 +30,8 @@ namespace MeridianServer
                 LoggerExt.LogError("[ServerHub] !!Main Process Error!!", e);
                 throw;
             }
+
+            Console.ReadLine();
         }
         
         //[DllImport("kernel32.dll", SetLastError = true)]
