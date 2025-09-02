@@ -8,71 +8,78 @@ using System;
 
 namespace MeridianServerLib.EncodingLayer.Encoders
 {
-    public class JsonBinaryListEncoder<T> : IBinaryEncoder<T> where T : class
-    {
-        private const string MESSAGE_SEPARATOR = "[:end:]";
+	
+	public class JsonBinaryListEncoder<T> : IBinaryEncoder<T> where T : struct
+	{
+		private const string MESSAGE_SEPARATOR = "[:end:]";
 
-        public byte[] Decode(T data, ILogger logger = null)
-        {
-            try
-            {
-                var json = JsonConvert.SerializeObject(data);
-                
-                logger?.Log("Decode: " + json);
+		public byte[] Decode(T data, ILogger logger = null)
+		{
+			//if (data == null)
+				//throw new ArgumentNullException(nameof(data));
 
-                return StringCompressor.CompressString(json + MESSAGE_SEPARATOR);
-            }
-            catch (Exception ex)
-            {
-                throw new MeridianEncoderException("[JsonBinaryListEncoder] Decode Error ", ex);
-            }
-        }
+			try
+			{
+				var json = JsonConvert.SerializeObject(data);
+				logger?.Log($"EncodeToBinary: {json}");
 
-        public T Encode(byte[] data, ILogger logger = null)
-        {
-            throw new NotImplementedException();
-        }
+				return StringCompressor.CompressString(json + MESSAGE_SEPARATOR);
+			}
+			catch (Exception ex)
+			{
+				logger?.LogError("[JsonBinaryListEncoder] EncodeToBinary Error", ex);
+				throw new MeridianEncoderException("[JsonBinaryListEncoder] EncodeToBinary Error", ex);
+			}
+		}
 
-        public T[] EncodeAll(byte[] data, ILogger logger = null)
-        {
-            string json = string.Empty;
+		public T Encode(byte[] data, ILogger logger = null)
+		{
+			throw new NotSupportedException("Use DecodeAllFromBinary for batch decoding.");
+		}
 
-            try
-            {
-                json = StringCompressor.DecompressString(data);
-            }
-            catch (Exception ex)
-            {
-                throw new MeridianDecompressStringExpection("[JsonBinaryListEncoder] EncodeAll Decompress String Error", ex);
-            }
+		public T[] EncodeAll(byte[] data, ILogger logger = null)
+		{
+			if (data == null)
+				throw new ArgumentNullException(nameof(data));
 
-            try
-            {
+			string json;
 
-                logger?.Log("Encode: " + json);
+			try
+			{
+				json = StringCompressor.DecompressString(data);
+			}
+			catch (Exception ex)
+			{
+				logger?.LogError("[JsonBinaryListEncoder] DecodeAllFromBinary Decompress Error", ex);
+				throw new MeridianDecompressStringExpection(
+					"[JsonBinaryListEncoder] DecodeAllFromBinary Decompress Error", ex);
+			}
 
-                json = json.Substring(0, json.Length - 7);
+			try
+			{
+				logger?.Log($"DecodeAllFromBinary: {json}");
 
-                var jsonObjects = json.Split(MESSAGE_SEPARATOR);
+				if (json.EndsWith(MESSAGE_SEPARATOR))
+					json = json.Remove(json.Length - MESSAGE_SEPARATOR.Length);
 
-                logger?.Log("jsonObjects: " + jsonObjects.Length);
+				var jsonObjects = json.Split(new[] { MESSAGE_SEPARATOR }, StringSplitOptions.RemoveEmptyEntries);
 
-                T[] encodeObjects = new T[jsonObjects.Length];
+				logger?.Log($"jsonObjects count: {jsonObjects.Length}");
 
-                for (int index = 0; index < jsonObjects.Length; index++)
-                {
-                    string jsonObject = jsonObjects[index];
+				var result = new T[jsonObjects.Length];
+				for (var i = 0; i < jsonObjects.Length; i++)
+				{
+					var jsonObject = jsonObjects[i];
+					result[i] = JsonConvert.DeserializeObject<T>(jsonObject, new DictionaryConversionRules());
+				}
 
-                    var encodeObject = JsonConvert.DeserializeObject<T>(jsonObject, new DictionaryConversionRules());
-                    encodeObjects[index] = encodeObject;
-                }
-
-                return encodeObjects;
-            }
-            catch (Exception ex)
-            {
-                throw new MeridianEncoderException("[JsonBinaryListEncoder] EncodeAll Error ", ex);
-            }
-        }
-    }
+				return result;
+			}
+			catch (Exception ex)
+			{
+				logger?.LogError("[JsonBinaryListEncoder] DecodeAllFromBinary Error", ex);
+				throw new MeridianEncoderException("[JsonBinaryListEncoder] DecodeAllFromBinary Error", ex);
+			}
+		}
+	}
 }

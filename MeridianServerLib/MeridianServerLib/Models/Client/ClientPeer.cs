@@ -26,12 +26,12 @@ namespace MeridianServerLib.Models.Client
         private readonly ILogger _logger;
         
         private IOperationsReceiver _receiver;
-        private ISocketMessageComponator _socketMessageComponator;
+        private readonly ISocketMessageComponator _socketMessageComponator;
         private int _messageId = 0;
 
         public ClientPeer(string address, int port, ILogger logger = null)
         {
-            _encoder = new JsonBinaryListEncoder<RpcData>();
+            _encoder = new MessagePackEncoder<RpcData>();
             _convertor = new RpcDataConvertor();
             _networkClient = new NetworkClient(address, port, OnReceived, logger);
             _logger = logger;
@@ -39,7 +39,7 @@ namespace MeridianServerLib.Models.Client
             _socketMessageComponator = new HeaderSocketMessageComponator(_logger);
 
             _networkClient.ConnectionStatusChanged += OnConnectionStatusChanged;
-            _socketMessageComponator.OnReceivedMessage += OnScketMessageComponatorReceivedMessage;
+            _socketMessageComponator.OnReceivedMessage += OnSocketMessageComponatorReceivedMessage;
         }
 
         public bool Connect()
@@ -66,7 +66,7 @@ namespace MeridianServerLib.Models.Client
 
                 var packData = _convertor.To(operation);
                 var sendBytes = _encoder.Decode(packData);
-                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWitchHeader(_messageId, sendBytes);
+                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWithHeader(_messageId, sendBytes);
 
                 return _networkClient.SendAsync(sendBytesWithHeader);
             }
@@ -99,13 +99,17 @@ namespace MeridianServerLib.Models.Client
             _socketMessageComponator.Received(buffer, offset, size);    
         }
 
-        private void OnScketMessageComponatorReceivedMessage(byte[] message)
+        private void OnSocketMessageComponatorReceivedMessage(byte[] message)
         {
             try
             {
-                var dataPacks = _encoder.EncodeAll(message, _logger);
+	            var dataPack = _encoder.Encode(message, _logger);
+	            var operationData = _convertor.From(dataPack);
+	            _receiver?.OnOperationReceived(operationData);
 
-                ProcessDataPacks(dataPacks);
+				//var dataPacks = _encoder.EncodeAll(message, _logger);
+
+    //            ProcessDataPacks(dataPacks);
 
             }
             catch (MeridianEncoderException ex)
@@ -118,16 +122,16 @@ namespace MeridianServerLib.Models.Client
             }
         }
 
-        private void ProcessDataPacks(RpcData[] dataPacks)
-        {
-            //_logger.Log("[ClientPeer] ProcessDataPacks Length: " + dataPacks.Length);
+        //private void ProcessDataPacks(RpcData[] dataPacks)
+        //{
+        //    //_logger.Log("[ClientPeer] ProcessDataPacks Length: " + dataPacks.Length);
 
-            foreach (var dataPack in dataPacks)
-            {
-                var operationData = _convertor.From(dataPack);
-                _receiver?.OnOperationReceived(operationData);
-            }
-        }
+        //    foreach (var dataPack in dataPacks)
+        //    {
+        //        var operationData = _convertor.From(dataPack);
+        //        _receiver?.OnOperationReceived(operationData);
+        //    }
+        //}
 
         private void OnConnectionStatusChanged(NetworkClientConnectionStatus status) => ClientConnectionStatusChanged?.Invoke(status);
     }

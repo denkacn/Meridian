@@ -1,15 +1,13 @@
-﻿using System;
+﻿using MessagePack;
 using System.Collections.Generic;
 
 namespace MeridianServerLib.EncodingLayer.DataObjects
 {
-    [Serializable]
-    public class RpcData
+	[MessagePackObject]
+	public readonly struct RpcData
     {
-        public byte C { get; set; }
-        public Dictionary<byte, object> P { get; set; } = new Dictionary<byte, object>();
-
-        public RpcData() { }
+		[Key(0)] public byte C { get; }
+		[Key(1)] public Dictionary<byte, object> P { get; }
 
         public RpcData(byte code, Dictionary<byte, object> param)
         {
@@ -19,10 +17,7 @@ namespace MeridianServerLib.EncodingLayer.DataObjects
 
         public void Add(byte key, object value)
         {
-            if (!P.ContainsKey(key))
-            {
-                P.Add(key, value);
-            }
+	        P.TryAdd(key, value);
         }
     }
 }

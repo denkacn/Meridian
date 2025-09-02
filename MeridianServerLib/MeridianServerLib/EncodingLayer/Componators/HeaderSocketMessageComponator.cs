@@ -10,16 +10,16 @@ namespace MeridianServerLib.EncodingLayer.Componators
 
         private const int _headerSize = 10;
 
-        private char _startSymbol = '@';
+        private readonly char _startSymbol = '@';
         private ReceivedMessage _receivedMessage;
-        private ILogger _logger;
+        private readonly ILogger _logger;
 
         public HeaderSocketMessageComponator(ILogger logger = null)
         {
             _logger = logger;
         }
 
-        public byte[] CreateMessageWitchHeader(int messageId, byte[] message)
+        public byte[] CreateMessageWithHeader(int messageId, byte[] message)
         {
             byte[] packStart = BitConverter.GetBytes(_startSymbol);    //2
             byte[] packId = BitConverter.GetBytes(messageId);    //4
@@ -28,7 +28,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
             var header = ByteArrayHelper.Combine(packStart, packId, packLength);
             var result = ByteArrayHelper.Combine(header, message);
 
-            _logger?.Log("[HeaderSocketMessageComponator] CreateMessageWitchHeader " + result.Length);
+            _logger?.Log("[HeaderSocketMessageComponator] CreateMessageWithHeader " + result.Length);
 
             return result;
         }

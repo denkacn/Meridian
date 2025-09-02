@@ -27,7 +27,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         private readonly IBinaryEncoder<RpcData> _encoder;
         private readonly RpcDataConvertor _convertor;
 
-        private string _id;
+        private readonly string _id;
         private bool _isBusy = false;
         private int _messageId = 0;
 
@@ -41,7 +41,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
 
             _id = id;
 			_operations = new Queue<OperationData>();
-            _encoder = new JsonBinaryListEncoder<RpcData>();
+            _encoder = new MessagePackEncoder<RpcData>();
             _convertor = new RpcDataConvertor();
 
             _socketMessageComponator = new HeaderSocketMessageComponator(logger);
@@ -81,24 +81,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             {
                 _logger?.Log($"[ServerPeerSession MeridianEncoderException] ({_id}) OnReceived: {buffer.Length} size: {size}");
 
-                _socketMessageComponator.Received(buffer, offset, size);    
-                //var message = new byte[size];
-                //System.Buffer.BlockCopy(buffer, (int)offset, message, 0, (int)size);
-            
-                ////var dataPack = _encoder.Encode(message);
-                ////var operationData = _convertor.From(dataPack);
-
-                ////ReceivedEventHandler?.Invoke(this, operationData);
-                ////_ = ReceivedEventAsync(operationData);
-
-                //var dataPacks = _encoder.EncodeAll(message, _logger);
-
-                //foreach (var dataPack in dataPacks)
-                //{
-                //    var operationData = _convertor.From(dataPack);
-                //    _ = ReceivedEventAsync(operationData);
-                //}
-
+                _socketMessageComponator.Received(buffer, offset, size);
             }
             catch (MeridianEncoderException ex)
             {
@@ -114,10 +97,13 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         {        
             try
             {
-                var dataPacks = _encoder.EncodeAll(message, _logger);
-                ProcessDataPacks(dataPacks);
+                var dataPack = _encoder.Encode(message, _logger);
+                var operationData = _convertor.From(dataPack);
+				_ = ReceivedEventAsync(operationData);
 
-            }
+				//var dataPacks = _encoder.EncodeAll(message, _logger);
+				//ProcessDataPacks(dataPacks);
+			}
             catch (MeridianEncoderException ex)
             {
                 _logger?.LogError($"[ServerPeerSession MeridianEncoderException] ({_id}) Error Received", ex);
@@ -128,16 +114,14 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             }       
         }
 
-        private void ProcessDataPacks(RpcData[] dataPacks)
-        {
-            //_logger.Log("[ClientPeer] ProcessDataPacks Length: " + dataPacks.Length);
-
-            foreach (var dataPack in dataPacks)
-            {
-                var operationData = _convertor.From(dataPack);
-                _ = ReceivedEventAsync(operationData);
-            }
-        }
+        //private void ProcessDataPacks(RpcData[] dataPacks)
+        //{
+        //    foreach (var dataPack in dataPacks)
+        //    {
+        //        var operationData = _convertor.From(dataPack);
+        //        _ = ReceivedEventAsync(operationData);
+        //    }
+        //}
 
         protected override void OnEmpty()
         {
@@ -170,7 +154,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
 
                 var packData = _convertor.To(operationData);
                 var sendBytes = _encoder.Decode(packData, _logger);
-                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWitchHeader(_messageId, sendBytes);
+                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWithHeader(_messageId, sendBytes);
 
                 //_logger.Log("[ServerPeerSession MeridianEncoder] Send " + operationData.OperationCode + " Length: " + sendBytesWithHeader.Length);
 
@@ -190,7 +174,8 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
 
         private async Task ReceivedEventAsync(OperationData operationData)
         {
-            await Task.Run(() => { ReceivedEventHandler?.Invoke(this, operationData); });  
+	        ReceivedEventHandler?.Invoke(this, operationData);
+	        //await Task.Run(() => { ReceivedEventHandler?.Invoke(this, operationData); });  
         }
     }
 }

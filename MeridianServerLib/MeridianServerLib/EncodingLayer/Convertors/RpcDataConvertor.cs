@@ -7,16 +7,12 @@ namespace MeridianServerLib.EncodingLayer.Convertors
     {
         public RpcData To(OperationData data)
         {
-            var packData = new RpcData(data.OperationCode, data.Parameters);
-
-            return packData;
+            return new RpcData(data.OperationCode, data.Parameters);
         }
 
         public OperationData From(RpcData data)
         {
-            var operationData = new OperationData(data.C, data.P);
-
-            return operationData;
+            return new OperationData(data.C, data.P);
         }
     }
 }

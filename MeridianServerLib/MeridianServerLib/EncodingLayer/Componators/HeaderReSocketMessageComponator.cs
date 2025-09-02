@@ -9,141 +9,160 @@ namespace MeridianServerLib.EncodingLayer.Componators
 		public event Action<byte[]> OnReceivedMessage;
 
 		private const int HeaderSize = 10;
-		private const char StartSymbol = '@';
-
+		private static readonly char StartSymbol = '@';
+		private ReceivedMessage _receivedMessage;
 		private readonly ILogger _logger;
-		private ReReceivedMessage _receivedMessage;
 
 		public HeaderReSocketMessageComponator(ILogger logger = null)
 		{
 			_logger = logger;
 		}
 
-		public byte[] CreateMessageWitchHeader(int messageId, byte[] message)
+		/// <summary>
+		/// Создает сообщение с заголовком.
+		/// </summary>
+		public byte[] CreateMessageWithHeader(int messageId, byte[] message)
 		{
-			var header = ByteArrayHelper.Combine(
-				BitConverter.GetBytes(StartSymbol),			//2
-				BitConverter.GetBytes(messageId),						//4
-				BitConverter.GetBytes(HeaderSize + message.Length)		//4
-			);
-
+			var header = CreateHeader(messageId, message.Length);
 			var result = ByteArrayHelper.Combine(header, message);
 
-			_logger?.Log($"[HeaderSocketMessageComponator] Created message with length {result.Length}");
+			_logger?.Log($"[HeaderSocketMessageComponator] CreateMessageWithHeader {result.Length}");
 
 			return result;
 		}
 
+		/// <summary>
+		/// Обрабатывает входящий буфер.
+		/// </summary>
 		public void Received(byte[] buffer, long offset, long size)
 		{
-			var startSymbol = BitConverter.ToChar(buffer, 0);
-			var messageId = BitConverter.ToInt32(buffer, 2);
-			var expectedMessageSize = BitConverter.ToInt32(buffer, 6);
+			if (buffer == null || buffer.Length < HeaderSize || size < HeaderSize)
+			{
+				_logger?.LogError("[HeaderSocketMessageComponator] Buffer too small or null", null);
+				return;
+			}
 
-			var messageBytes = new byte[size];
-			Buffer.BlockCopy(buffer, 0, messageBytes, 0, (int)size);
+			var span = new ReadOnlySpan<byte>(buffer, (int)offset, (int)size);
+			var (startSymbol, messageId, correctMessageSize) = ParseHeader(span);
 
-			_logger?.Log($"[HeaderSocketMessageComponator] Received startSymbol: {startSymbol}, size: {size}, expected size: {expectedMessageSize}, buffer length: {messageBytes.Length}");
+			if (startSymbol != StartSymbol)
+			{
+				_logger?.LogError("[HeaderSocketMessageComponator] Invalid start symbol", null);
+				return;
+			}
+
+			var messageBytes = span.Slice(0, (int)size).ToArray();
+
+			_logger?.Log($"[HeaderSocketMessageComponator] Received startSymbol: {startSymbol} size: {size} messageSize: {correctMessageSize} messageBytes Length: {messageBytes.Length}");
 
 			if (_receivedMessage == null)
 			{
-				ProcessInitialMessage(buffer, size, expectedMessageSize, startSymbol);
-			}
-			else
-			{
-				ProcessContinuedMessage(buffer, size);
-			}
-
-			if (_receivedMessage?.IsReady == true)
-			{
-				_receivedMessage = null;
-			}
-		}
-
-		private void ProcessInitialMessage(byte[] buffer, long size, int expectedMessageSize, char startSymbol)
-		{
-			if (expectedMessageSize == size)
-			{
-				TrySendReceivedMessage(buffer);
-			}
-			else if (expectedMessageSize < size)
-			{
-				SplitAndProcessMessages(buffer, (int)size, expectedMessageSize);
-			}
-			else if (startSymbol == StartSymbol)
-			{
-				_receivedMessage = new ReReceivedMessage(buffer, 0, expectedMessageSize);
-			}
-		}
-
-		private void ProcessContinuedMessage(byte[] buffer, long size)
-		{
-			if (size > _receivedMessage.NeedBytes)
-			{
-				var missingBytes = new byte[_receivedMessage.NeedBytes];
-				Buffer.BlockCopy(buffer, 0, missingBytes, 0, _receivedMessage.NeedBytes);
-
-				_receivedMessage.Add(missingBytes);
-				TrySendReceivedMessage(_receivedMessage.Buffer);
-
-				var remainingBytes = new byte[size - _receivedMessage.NeedBytes];
-				Buffer.BlockCopy(buffer, _receivedMessage.NeedBytes, remainingBytes, 0, remainingBytes.Length);
-				Received(remainingBytes, 0, remainingBytes.Length);
-			}
-			else
-			{
-				_receivedMessage.Add(buffer);
-
-				if (_receivedMessage.IsReady)
+				if (correctMessageSize == size)
 				{
-					TrySendReceivedMessage(_receivedMessage.Buffer);
+					TrySendReceivedMessage(messageBytes);
+				}
+				else if (correctMessageSize < size)
+				{
+					var firstMessageBytes = span.Slice(0, correctMessageSize).ToArray();
+					TrySendReceivedMessage(firstMessageBytes);
+
+					ProcessRemainderMessage(span, correctMessageSize);
+				}
+				else // correctMessageSize > size
+				{
+					_receivedMessage = new ReceivedMessage(messageBytes, correctMessageSize);
 				}
 			}
+			else
+			{
+				var needBytes = _receivedMessage.NeedBytes;
+				if (size > needBytes)
+				{
+					var missingMessageBytes = span.Slice(0, needBytes).ToArray();
+					_receivedMessage.Add(missingMessageBytes);
+					TrySendReceivedMessage(_receivedMessage.Buffer);
+
+					ProcessRemainderMessage(span, needBytes);
+				}
+				else
+				{
+					_receivedMessage.Add(messageBytes);
+					if (_receivedMessage.IsReady)
+						TrySendReceivedMessage(_receivedMessage.Buffer);
+				}
+			}
+
+			if (_receivedMessage != null && _receivedMessage.IsReady)
+				_receivedMessage = null;
 		}
 
-		private void SplitAndProcessMessages(byte[] buffer, int size, int correctMessageSize)
+		/// <summary>
+		/// Парсит заголовок сообщения.
+		/// </summary>
+		private (char startSymbol, int messageId, int messageSize) ParseHeader(ReadOnlySpan<byte> buffer)
 		{
-			var firstMessage = new byte[correctMessageSize];
-			Buffer.BlockCopy(buffer, 0, firstMessage, 0, correctMessageSize);
-
-			TrySendReceivedMessage(firstMessage);
-
-			var remainingSize = size - correctMessageSize;
-			var remainingMessage = new byte[remainingSize];
-			Buffer.BlockCopy(buffer, correctMessageSize, remainingMessage, 0, remainingSize);
-
-			Received(remainingMessage, 0, remainingSize);
+			char startSymbol = BitConverter.ToChar(buffer.Slice(0, 2));
+			int messageId = BitConverter.ToInt32(buffer.Slice(2, 4));
+			int messageSize = BitConverter.ToInt32(buffer.Slice(6, 4));
+			return (startSymbol, messageId, messageSize);
 		}
 
+		/// <summary>
+		/// Создает заголовок сообщения.
+		/// </summary>
+		private byte[] CreateHeader(int messageId, int messageLength)
+		{
+			byte[] packStart = BitConverter.GetBytes(StartSymbol);    //2
+			byte[] packId = BitConverter.GetBytes(messageId);         //4
+			byte[] packLength = BitConverter.GetBytes(HeaderSize + messageLength); //4
+			return ByteArrayHelper.Combine(packStart, packId, packLength);
+		}
+
+		/// <summary>
+		/// Обрабатывает остаток буфера после первого сообщения.
+		/// </summary>
+		private void ProcessRemainderMessage(ReadOnlySpan<byte> buffer, int processedSize)
+		{
+			var nextMessageSize = buffer.Length - processedSize;
+			if (nextMessageSize <= 0)
+				return;
+
+			var nextMessageBytes = buffer.Slice(processedSize, nextMessageSize).ToArray();
+			Received(nextMessageBytes, 0, nextMessageSize);
+		}
+
+		/// <summary>
+		/// Отправляет полученное сообщение без заголовка.
+		/// </summary>
 		private void TrySendReceivedMessage(byte[] buffer)
 		{
+			if (buffer.Length < HeaderSize)
+				return;
+
 			var messageLength = buffer.Length - HeaderSize;
 			var message = new byte[messageLength];
 			Buffer.BlockCopy(buffer, HeaderSize, message, 0, messageLength);
 
 			OnReceivedMessage?.Invoke(message);
 		}
-	}
 
-	public class ReReceivedMessage
-	{
-		public byte[] Buffer { get; private set; }
-		public int Offset { get; }
-		public int Size { get; }
-
-		public bool IsReady => Buffer.Length == Size;
-		public int NeedBytes => Size - Buffer.Length;
-
-		public ReReceivedMessage(byte[] buffer, int offset, int size)
+		private class ReceivedMessage
 		{
-			Buffer = buffer;
-			Offset = offset;
-			Size = size;
-		}
+			public byte[] Buffer { get; private set; }
+			public int Size { get; }
+			public bool IsReady => Buffer.Length == Size;
+			public int NeedBytes => Size - Buffer.Length;
 
-		public void Add(byte[] message)
-		{
-			Buffer = ByteArrayHelper.Combine(Buffer, message);
+			public ReceivedMessage(byte[] buffer, int size)
+			{
+				Buffer = buffer;
+				Size = size;
+			}
+
+			public void Add(byte[] message)
+			{
+				Buffer = ByteArrayHelper.Combine(Buffer, message);
+			}
 		}
 	}
 }

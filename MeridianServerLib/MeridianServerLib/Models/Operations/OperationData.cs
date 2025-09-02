@@ -5,20 +5,15 @@ using MeridianServerLib.Interfaces.Operations;
 namespace MeridianServerLib.Models.Operations
 {
     [Serializable]
-    public class OperationData : IOperationData
+    public readonly struct OperationData : IOperationData
     {
-        public byte OperationCode { get; set; }
-        public string DebugMessage { get; set; }
-        public short ReturnCode { get; set; }
-        public Dictionary<byte, object> Parameters { get; set; }
-        
-        public OperationData()
-        {
-        }
+        public byte OperationCode { get; }
+        public Dictionary<byte, object> Parameters { get; }
 
         public OperationData(byte operationCode)
         {
             OperationCode = operationCode;
+            Parameters = new Dictionary<byte, object>();
         }
 
         public OperationData(byte operationCode, Dictionary<byte, object> parameters)

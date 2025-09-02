@@ -1,10 +1,12 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using MeridianServerLib.EncodingLayer.Interfaces;
 using MeridianServerLib.LogsLayer.Interfaces;
 
 namespace MeridianServerLib.EncodingLayer.Encoders
 {
+    [Obsolete]
     public class FormatterBinaryEncoder<T> : IBinaryEncoder<T> where T : class
     {
         public byte[] Decode(T data, ILogger logger)
