@@ -37,7 +37,7 @@ namespace MeridianServer.TransportLayer.ApplicationProvider
 
 		public void Start()
 		{
-			_server.Start();
+			if (!IsStarted) _server.Start();
 		}
 
 		public void Stop()

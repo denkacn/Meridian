@@ -28,8 +28,6 @@ namespace MeridianServer.BaseLayer.Models
 
 		public void Init()
         {
-            LoggerExt.Log("[ServerHub] Init");
-
             LoggerExt.Log("[ServerHub] Server Init Start");
 
             InitSettingsLayer();
@@ -49,7 +47,7 @@ namespace MeridianServer.BaseLayer.Models
 		{
 			if (_serverSettings.IsAutoStart)
 			{
-				await Task.Delay(2000);
+				await Task.Delay(2000).ConfigureAwait(true);
 
 				StartServer();
 			}
@@ -83,7 +81,7 @@ namespace MeridianServer.BaseLayer.Models
 	        await Task.Delay(1000);
 
 	        LoggerExt.Log("[ServerHub] StartServer");
-			StartServer();
+			//StartServer();
         }
 
         #region Setting Layer
