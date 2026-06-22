@@ -1,7 +1,5 @@
 ﻿using System;
 using MeridianServerLib.EncodingLayer.Componators;
-using MeridianServerLib.EncodingLayer.Convertors;
-using MeridianServerLib.EncodingLayer.DataObjects;
 using MeridianServerLib.EncodingLayer.Encoders;
 using MeridianServerLib.EncodingLayer.Interfaces;
 using MeridianServerLib.Exceptions;
@@ -20,8 +18,7 @@ namespace MeridianServerLib.Models.Client
 
         public bool IsConnected => _networkClient.IsConnected;
         
-        private readonly IBinaryEncoder<RpcData> _encoder;
-        private readonly RpcDataConvertor _convertor;
+        private readonly IBinaryEncoder<OperationData> _encoder;
         private readonly NetworkClient _networkClient;
         private readonly ILogger _logger;
         
@@ -32,8 +29,7 @@ namespace MeridianServerLib.Models.Client
 
         public ClientPeer(string address, int port, ILogger logger = null)
         {
-            _encoder = new MessagePackEncoder<RpcData>();
-            _convertor = new RpcDataConvertor();
+            _encoder = new MessagePackEncoder<OperationData>();
             _networkClient = new NetworkClient(address, port, OnReceived, logger);
             _logger = logger;
 
@@ -83,11 +79,9 @@ namespace MeridianServerLib.Models.Client
             {
                 _messageId++;
 
-                var packData = _convertor.To(operation);
-                var sendBytes = _encoder.Decode(packData);
-                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWithHeader(_messageId, sendBytes);
+                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWithHeader(_messageId, operation, _encoder, _logger);
 
-                return _networkClient.SendAsync(sendBytesWithHeader);
+                return _networkClient.SendAsync(sendBytesWithHeader.Span);
             }
             catch (MeridianEncoderException ex)
             {
@@ -137,8 +131,7 @@ namespace MeridianServerLib.Models.Client
         {
             try
             {
-	            var dataPack = _encoder.Encode(message, _logger);
-	            var operationData = _convertor.From(dataPack);
+	            var operationData = _encoder.Deserialize(message, _logger);
 	            _receiver?.OnOperationReceived(operationData);
             }
             catch (MeridianEncoderException ex)

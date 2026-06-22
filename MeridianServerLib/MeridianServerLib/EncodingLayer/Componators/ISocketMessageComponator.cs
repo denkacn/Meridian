@@ -1,4 +1,6 @@
-﻿using System;
+using System;
+using MeridianServerLib.EncodingLayer.Interfaces;
+using MeridianServerLib.LogsLayer.Interfaces;
 
 namespace MeridianServerLib.EncodingLayer.Componators
 {
@@ -6,6 +8,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
     {
         event Action<byte[]> OnReceivedMessage;
         byte[] CreateMessageWithHeader(int messageId, byte[] message);
+        ReadOnlyMemory<byte> CreateMessageWithHeader<T>(int messageId, T message, IBinaryEncoder<T> encoder, ILogger logger = null);
         void Received(byte[] buffer, int offset, int size);
     }
 }

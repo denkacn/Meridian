@@ -1,4 +1,5 @@
 ﻿using MeridianServerLib.EncodingLayer.Tools;
+using MeridianServerLib.EncodingLayer.Interfaces;
 using MeridianServerLib.LogsLayer.Interfaces;
 using System;
 using System.Buffers.Binary;
@@ -42,6 +43,11 @@ namespace MeridianServerLib.EncodingLayer.Componators
 			_logger?.Log($"[HeaderSocketMessageComponator] CreateMessageWithHeader {result.Length}");
 
 			return result;
+		}
+
+		public ReadOnlyMemory<byte> CreateMessageWithHeader<T>(int messageId, T message, IBinaryEncoder<T> encoder, ILogger logger = null)
+		{
+			return CreateMessageWithHeader(messageId, encoder.Serialize(message, logger));
 		}
 
 		public void Received(byte[] buffer, int offset, int size)

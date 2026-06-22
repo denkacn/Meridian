@@ -1,63 +1,65 @@
-﻿using MeridianServerLib.EncodingLayer.Encoders.JsonConverters;
+using System;
+using System.Buffers;
+using MeridianServerLib.EncodingLayer.Encoders.JsonConverters;
 using MeridianServerLib.EncodingLayer.Interfaces;
 using MeridianServerLib.EncodingLayer.Tools;
 using MeridianServerLib.Exceptions;
 using MeridianServerLib.LogsLayer.Interfaces;
 using Newtonsoft.Json;
-using System;
 
 namespace MeridianServerLib.EncodingLayer.Encoders
 {
-	
 	public class JsonBinaryListEncoder<T> : IBinaryEncoder<T> where T : struct
 	{
 		private const string MESSAGE_SEPARATOR = "[:end:]";
 
-		public byte[] Decode(T data, ILogger logger = null)
+		public byte[] Serialize(T data, ILogger logger = null)
 		{
-			//if (data == null)
-				//throw new ArgumentNullException(nameof(data));
-
 			try
 			{
 				var json = JsonConvert.SerializeObject(data);
-				logger?.Log($"EncodeToBinary: {json}");
+				logger?.Log($"Serialize: {json}");
 
 				return StringCompressor.CompressString(json + MESSAGE_SEPARATOR);
 			}
 			catch (Exception ex)
 			{
-				logger?.LogError("[JsonBinaryListEncoder] EncodeToBinary Error", ex);
-				throw new MeridianEncoderException("[JsonBinaryListEncoder] EncodeToBinary Error", ex);
+				logger?.LogError("[JsonBinaryListEncoder] Serialize Error", ex);
+				throw new MeridianEncoderException("[JsonBinaryListEncoder] Serialize Error", ex);
 			}
 		}
 
-		public T Encode(byte[] data, ILogger logger = null)
+		public void Serialize(IBufferWriter<byte> writer, T data, ILogger logger = null)
 		{
-			throw new NotSupportedException("Use DecodeAllFromBinary for batch decoding.");
+			var bytes = Serialize(data, logger);
+			var span = writer.GetSpan(bytes.Length);
+			bytes.CopyTo(span);
+			writer.Advance(bytes.Length);
 		}
 
-		public T[] EncodeAll(byte[] data, ILogger logger = null)
+		public T Deserialize(ReadOnlyMemory<byte> data, ILogger logger = null)
 		{
-			if (data == null)
-				throw new ArgumentNullException(nameof(data));
+			throw new NotSupportedException("Use DeserializeAll for batch decoding.");
+		}
 
+		public T[] DeserializeAll(ReadOnlyMemory<byte> data, ILogger logger = null)
+		{
 			string json;
 
 			try
 			{
-				json = StringCompressor.DecompressString(data);
+				json = StringCompressor.DecompressString(data.ToArray());
 			}
 			catch (Exception ex)
 			{
-				logger?.LogError("[JsonBinaryListEncoder] DecodeAllFromBinary Decompress Error", ex);
+				logger?.LogError("[JsonBinaryListEncoder] DeserializeAll Decompress Error", ex);
 				throw new MeridianDecompressStringException(
-					"[JsonBinaryListEncoder] DecodeAllFromBinary Decompress Error", ex);
+					"[JsonBinaryListEncoder] DeserializeAll Decompress Error", ex);
 			}
 
 			try
 			{
-				logger?.Log($"DecodeAllFromBinary: {json}");
+				logger?.Log($"DeserializeAll: {json}");
 
 				if (json.EndsWith(MESSAGE_SEPARATOR))
 					json = json.Remove(json.Length - MESSAGE_SEPARATOR.Length);
@@ -69,16 +71,15 @@ namespace MeridianServerLib.EncodingLayer.Encoders
 				var result = new T[jsonObjects.Length];
 				for (var i = 0; i < jsonObjects.Length; i++)
 				{
-					var jsonObject = jsonObjects[i];
-					result[i] = JsonConvert.DeserializeObject<T>(jsonObject, new DictionaryConversionRules());
+					result[i] = JsonConvert.DeserializeObject<T>(jsonObjects[i], new DictionaryConversionRules());
 				}
 
 				return result;
 			}
 			catch (Exception ex)
 			{
-				logger?.LogError("[JsonBinaryListEncoder] DecodeAllFromBinary Error", ex);
-				throw new MeridianEncoderException("[JsonBinaryListEncoder] DecodeAllFromBinary Error", ex);
+				logger?.LogError("[JsonBinaryListEncoder] DeserializeAll Error", ex);
+				throw new MeridianEncoderException("[JsonBinaryListEncoder] DeserializeAll Error", ex);
 			}
 		}
 	}

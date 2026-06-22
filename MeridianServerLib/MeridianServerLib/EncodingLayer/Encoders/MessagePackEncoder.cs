@@ -1,4 +1,6 @@
-﻿using MeridianServerLib.EncodingLayer.Interfaces;
+using System;
+using System.Buffers;
+using MeridianServerLib.EncodingLayer.Interfaces;
 using MeridianServerLib.LogsLayer.Interfaces;
 using MessagePack;
 
@@ -6,19 +8,24 @@ namespace MeridianServerLib.EncodingLayer.Encoders
 {
 	public class MessagePackEncoder<T> : IBinaryEncoder<T> where T : struct
 	{
-		public byte[] Decode(T data, ILogger logger = null)
+		public byte[] Serialize(T data, ILogger logger = null)
 		{
 			return MessagePackSerializer.Serialize(data);
 		}
 
-		public T Encode(byte[] data, ILogger logger = null)
+		public void Serialize(IBufferWriter<byte> writer, T data, ILogger logger = null)
+		{
+			MessagePackSerializer.Serialize(writer, data);
+		}
+
+		public T Deserialize(ReadOnlyMemory<byte> data, ILogger logger = null)
 		{
 			return MessagePackSerializer.Deserialize<T>(data);
 		}
 
-		public T[] EncodeAll(byte[] data, ILogger logger = null)
+		public T[] DeserializeAll(ReadOnlyMemory<byte> data, ILogger logger = null)
 		{
-			return new[] { Encode(data, logger) };
+			return new[] { Deserialize(data, logger) };
 		}
 	}
 }

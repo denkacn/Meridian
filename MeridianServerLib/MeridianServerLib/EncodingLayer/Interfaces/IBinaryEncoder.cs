@@ -1,11 +1,14 @@
-﻿using MeridianServerLib.LogsLayer.Interfaces;
+using System;
+using System.Buffers;
+using MeridianServerLib.LogsLayer.Interfaces;
 
 namespace MeridianServerLib.EncodingLayer.Interfaces
 {
     public interface IBinaryEncoder<T>
     {
-        public byte[] Decode(T data, ILogger logger = null);
-        public T Encode(byte[] data, ILogger logger = null);
-        public T[] EncodeAll(byte[] data, ILogger logger = null);
+        byte[] Serialize(T data, ILogger logger = null);
+        void Serialize(IBufferWriter<byte> writer, T data, ILogger logger = null);
+        T Deserialize(ReadOnlyMemory<byte> data, ILogger logger = null);
+        T[] DeserializeAll(ReadOnlyMemory<byte> data, ILogger logger = null);
     }
 }

@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Buffers;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using MeridianServerLib.EncodingLayer.Interfaces;
@@ -9,29 +10,33 @@ namespace MeridianServerLib.EncodingLayer.Encoders
     [Obsolete]
     public class FormatterBinaryEncoder<T> : IBinaryEncoder<T> where T : class
     {
-        public byte[] Decode(T data, ILogger logger)
+        public byte[] Serialize(T data, ILogger logger)
         {
-            var bf = new BinaryFormatter();
-            using var ms = new MemoryStream();
-            bf.Serialize(ms, data);
-            return ms.ToArray();
+            var binaryFormatter = new BinaryFormatter();
+            using var memoryStream = new MemoryStream();
+            binaryFormatter.Serialize(memoryStream, data);
+            return memoryStream.ToArray();
         }
 
-        public T Encode(byte[] data, ILogger logger)
+        public void Serialize(IBufferWriter<byte> writer, T data, ILogger logger = null)
         {
-            using var memStream = new MemoryStream();
-            
-            var binForm = new BinaryFormatter();
-            memStream.Write(data, 0, data.Length);
-            memStream.Seek(0, SeekOrigin.Begin);
-            var obj = binForm.Deserialize(memStream);
-                
-            return (T)obj;
+            var bytes = Serialize(data, logger);
+            var span = writer.GetSpan(bytes.Length);
+            bytes.CopyTo(span);
+            writer.Advance(bytes.Length);
         }
 
-        public T[] EncodeAll(byte[] data, ILogger logger = null)
+        public T Deserialize(ReadOnlyMemory<byte> data, ILogger logger)
         {
-            throw new System.NotImplementedException();
+            using var memoryStream = new MemoryStream(data.ToArray());
+            var binaryFormatter = new BinaryFormatter();
+
+            return (T)binaryFormatter.Deserialize(memoryStream);
+        }
+
+        public T[] DeserializeAll(ReadOnlyMemory<byte> data, ILogger logger = null)
+        {
+            throw new NotImplementedException();
         }
     }
 }

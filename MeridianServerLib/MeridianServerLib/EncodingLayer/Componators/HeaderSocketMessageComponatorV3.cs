@@ -2,6 +2,8 @@
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Runtime.InteropServices;
+using MeridianServerLib.EncodingLayer.Interfaces;
 
 namespace MeridianServerLib.EncodingLayer.Componators
 {
@@ -35,17 +37,35 @@ namespace MeridianServerLib.EncodingLayer.Componators
 			var totalSize = HeaderSize + message.Length;
 			var buffer = new byte[totalSize];
 
-			buffer[0] = StartSymbol;
-			buffer[1] = 0;
-
-			BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(2, 4), messageId);
-			BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(6, 4), totalSize);
+			WriteHeader(buffer.AsSpan(0, HeaderSize), messageId, totalSize);
 
 			Buffer.BlockCopy(message, 0, buffer, HeaderSize, message.Length);
 
 			//_logger?.Log($"[Componator] CreateMessageWithHeader {totalSize}");
 
 			return buffer;
+		}
+
+		public ReadOnlyMemory<byte> CreateMessageWithHeader<T>(int messageId, T message, IBinaryEncoder<T> encoder, ILogger logger = null)
+		{
+			if (_isDisposed)
+			{
+				throw new ObjectDisposedException(nameof(HeaderSocketMessageComponatorV3));
+			}
+
+			var writer = new ArrayBufferWriter<byte>();
+			writer.Advance(HeaderSize);
+
+			encoder.Serialize(writer, message, logger);
+
+			if (!MemoryMarshal.TryGetArray(writer.WrittenMemory, out var segment) || segment.Array == null)
+			{
+				throw new InvalidOperationException("Unable to access packet buffer.");
+			}
+
+			WriteHeader(segment.Array.AsSpan(segment.Offset, HeaderSize), messageId, writer.WrittenCount);
+
+			return writer.WrittenMemory;
 		}
 
 
@@ -86,10 +106,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 
 				if (_bufferCount - readPos < totalSize) break;
 
-				var message = new byte[totalSize];
-				Buffer.BlockCopy(_receiveBuffer, readPos, message, 0, totalSize);
-
-				HandleFullMessage(messageId, message, totalSize);
+				HandleFullMessage(messageId, readPos, totalSize);
 
 				readPos += totalSize;
 			}
@@ -101,11 +118,11 @@ namespace MeridianServerLib.EncodingLayer.Componators
 			}
 		}
 
-		private void HandleFullMessage(int messageId, byte[] buffer, int size)
+		private void HandleFullMessage(int messageId, int messageOffset, int size)
 		{
 			var payloadLength = size - HeaderSize;
 			var payload = new byte[payloadLength];
-			Buffer.BlockCopy(buffer, HeaderSize, payload, 0, payloadLength);
+			Buffer.BlockCopy(_receiveBuffer, messageOffset + HeaderSize, payload, 0, payloadLength);
 
 			//_logger?.Log($"[Componator] Received messageId={messageId}, size={payloadLength}");
 			OnReceivedMessage?.Invoke(payload);
@@ -120,6 +137,15 @@ namespace MeridianServerLib.EncodingLayer.Componators
 
 			ArrayPool<byte>.Shared.Return(_receiveBuffer);
 			_receiveBuffer = newBuffer;
+		}
+
+		private static void WriteHeader(Span<byte> header, int messageId, int totalSize)
+		{
+			header[0] = StartSymbol;
+			header[1] = 0;
+
+			BinaryPrimitives.WriteInt32LittleEndian(header.Slice(2, 4), messageId);
+			BinaryPrimitives.WriteInt32LittleEndian(header.Slice(6, 4), totalSize);
 		}
 
 		public void Dispose()

@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Net.Sockets;
 using MeridianServerLib.EncodingLayer.Componators;
-using MeridianServerLib.EncodingLayer.Convertors;
-using MeridianServerLib.EncodingLayer.DataObjects;
 using MeridianServerLib.EncodingLayer.Encoders;
 using MeridianServerLib.EncodingLayer.Interfaces;
 using MeridianServerLib.Exceptions;
@@ -23,8 +21,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
 
         public string SessionId => Id.ToString();
         
-        private readonly IBinaryEncoder<RpcData> _encoder;
-        private readonly RpcDataConvertor _convertor;
+        private readonly IBinaryEncoder<OperationData> _encoder;
 
         private readonly string _id;
         private bool _isBusy = false;
@@ -42,8 +39,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
 
             _id = id;
 			_operations = new Queue<OperationData>();
-            _encoder = new MessagePackEncoder<RpcData>();
-            _convertor = new RpcDataConvertor();
+            _encoder = new MessagePackEncoder<OperationData>();
 
             _socketMessageComponator = new HeaderSocketMessageComponatorV3(logger);
 
@@ -101,8 +97,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         {        
             try
             {
-                var dataPack = _encoder.Encode(message, _logger);
-                var operationData = _convertor.From(dataPack);
+                var operationData = _encoder.Deserialize(message, _logger);
 				ReceivedEvent(operationData);
 			}
             catch (MeridianEncoderException ex)
@@ -218,13 +213,11 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         {
             try
             {
-                var packData = _convertor.To(operationData);
-                var sendBytes = _encoder.Decode(packData, _logger);
-                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWithHeader(messageId, sendBytes);
+                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWithHeader(messageId, operationData, _encoder, _logger);
 
                 //_logger.Log("[ServerPeerSession MeridianEncoder] Send " + operationData.OperationCode + " Length: " + sendBytesWithHeader.Length);
 
-                if (!SendAsync(sendBytesWithHeader))
+                if (!SendAsync(sendBytesWithHeader.Span))
                 {
                     throw new InvalidOperationException("SendAsync returned false.");
                 }
