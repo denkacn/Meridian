@@ -10,6 +10,7 @@ using MeridianServer.ExternalLayer.ResourcesLoader;
 using MeridianServer.LogsLayer;
 using MeridianServer.TransportLayer.Interfaces;
 using MeridianServer.TransportLayer.Models;
+using MeridianServerLib.Exceptions;
 using MeridianServerLib.Models.Server;
 
 namespace MeridianServer.BaseLayer.Models
@@ -102,8 +103,17 @@ namespace MeridianServer.BaseLayer.Models
 			foreach (var layer in _serverSettings.Layers)
 			{
                 var path = Path.Combine(BaseDirectory, layer.PathToExternalApplicationLib);
-				var meridianApplication =
-					ExternalApplicationController.SearchExternalApplication(path);
+				MeridianApplication meridianApplication;
+
+                try
+                {
+                    meridianApplication = (MeridianApplication)ExternalApplicationController.SearchExternalApplication(path);
+                }
+                catch (MeridianExternalLogicException ex)
+                {
+                    throw new MeridianExternalLogicException(
+                        $"Failed to load Meridian layer '{layer.LayerName}' from '{path}'.", ex);
+                }
 
 				meridianApplication.MeridianApplicationCommand += OnMeridianApplicationCommand;
 

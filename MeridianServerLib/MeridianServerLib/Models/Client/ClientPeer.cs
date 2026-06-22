@@ -39,6 +39,9 @@ namespace MeridianServerLib.Models.Client
 
             _socketMessageComponator = new HeaderSocketMessageComponatorV3(_logger);
 
+            _networkClient.NetworkClientConnected += OnNetworkClientConnected;
+            _networkClient.NetworkClientDisconnected += OnNetworkClientDisconnected;
+            _networkClient.NetworkClientError += OnNetworkClientError;
             _networkClient.ConnectionStatusChanged += OnConnectionStatusChanged;
             _socketMessageComponator.OnReceivedMessage += OnSocketMessageComponatorReceivedMessage;
         }
@@ -107,6 +110,9 @@ namespace MeridianServerLib.Models.Client
         {
             if (_isDiscarded) return;
 
+            _networkClient.NetworkClientConnected -= OnNetworkClientConnected;
+            _networkClient.NetworkClientDisconnected -= OnNetworkClientDisconnected;
+            _networkClient.NetworkClientError -= OnNetworkClientError;
             _networkClient.ConnectionStatusChanged -= OnConnectionStatusChanged;
             _socketMessageComponator.OnReceivedMessage -= OnSocketMessageComponatorReceivedMessage;
 
@@ -146,5 +152,11 @@ namespace MeridianServerLib.Models.Client
         }
 
         private void OnConnectionStatusChanged(NetworkClientConnectionStatus status) => ClientConnectionStatusChanged?.Invoke(status);
+
+        private void OnNetworkClientConnected() => ClientConnected?.Invoke();
+
+        private void OnNetworkClientDisconnected() => ClientDisconnected?.Invoke();
+
+        private void OnNetworkClientError(System.Net.Sockets.SocketError error) => ClientError?.Invoke(error);
     }
 }
