@@ -2,7 +2,7 @@
 
 namespace MeridianServerLib.EncodingLayer.Componators
 {
-    public interface ISocketMessageComponator
+    public interface ISocketMessageComponator : IDisposable
     {
         event Action<byte[]> OnReceivedMessage;
         byte[] CreateMessageWithHeader(int messageId, byte[] message);

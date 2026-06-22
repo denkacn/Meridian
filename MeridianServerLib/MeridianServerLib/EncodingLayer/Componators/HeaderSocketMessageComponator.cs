@@ -118,6 +118,12 @@ namespace MeridianServerLib.EncodingLayer.Componators
 
             OnReceivedMessage?.Invoke(message);
         }
+
+        public void Dispose()
+        {
+            OnReceivedMessage = null;
+            _receivedMessage = null;
+        }
     }
 
     public class ReceivedMessage

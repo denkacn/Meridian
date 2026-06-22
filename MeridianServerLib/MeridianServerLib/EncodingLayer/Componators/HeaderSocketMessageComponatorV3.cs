@@ -16,6 +16,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 
 		private byte[] _receiveBuffer;
 		private int _bufferCount;
+		private bool _isDisposed;
 
 		public HeaderSocketMessageComponatorV3(ILogger logger = null, int initialBufferSize = 64 * 1024)
 		{
@@ -26,6 +27,11 @@ namespace MeridianServerLib.EncodingLayer.Componators
 
 		public byte[] CreateMessageWithHeader(int messageId, byte[] message)
 		{
+			if (_isDisposed)
+			{
+				throw new ObjectDisposedException(nameof(HeaderSocketMessageComponatorV3));
+			}
+
 			var totalSize = HeaderSize + message.Length;
 			var buffer = new byte[totalSize];
 
@@ -45,6 +51,11 @@ namespace MeridianServerLib.EncodingLayer.Componators
 
 		public void Received(byte[] data, int offset, int size)
 		{
+			if (_isDisposed)
+			{
+				throw new ObjectDisposedException(nameof(HeaderSocketMessageComponatorV3));
+			}
+
 			EnsureCapacity(_bufferCount + size);
 
 			Buffer.BlockCopy(data, offset, _receiveBuffer, _bufferCount, size);
@@ -109,6 +120,25 @@ namespace MeridianServerLib.EncodingLayer.Componators
 
 			ArrayPool<byte>.Shared.Return(_receiveBuffer);
 			_receiveBuffer = newBuffer;
+		}
+
+		public void Dispose()
+		{
+			if (_isDisposed)
+			{
+				return;
+			}
+
+			OnReceivedMessage = null;
+
+			if (_receiveBuffer != null)
+			{
+				ArrayPool<byte>.Shared.Return(_receiveBuffer);
+				_receiveBuffer = null;
+			}
+
+			_bufferCount = 0;
+			_isDisposed = true;
 		}
 	}
 }

@@ -28,6 +28,7 @@ namespace MeridianServerLib.Models.Client
         private IOperationsReceiver _receiver;
         private readonly ISocketMessageComponator _socketMessageComponator;
         private int _messageId = 0;
+        private bool _isDiscarded;
 
         public ClientPeer(string address, int port, ILogger logger = null)
         {
@@ -44,6 +45,11 @@ namespace MeridianServerLib.Models.Client
 
         public bool Connect()
         {
+            if (_isDiscarded)
+            {
+                return false;
+            }
+
             var isConnect = _networkClient.ConnectAsync();
             if (isConnect)
             {
@@ -55,11 +61,21 @@ namespace MeridianServerLib.Models.Client
 
         public bool Disconnect()
         {
+            if (_isDiscarded)
+            {
+                return false;
+            }
+
             return _networkClient.DisconnectAsync();
         }
 
         public bool Send(OperationData operation)
         {
+            if (_isDiscarded)
+            {
+                return false;
+            }
+
             try
             {
                 _messageId++;
@@ -89,9 +105,21 @@ namespace MeridianServerLib.Models.Client
 
         public void Discard()
         {
-            if (_networkClient == null) return;
+            if (_isDiscarded) return;
 
             _networkClient.ConnectionStatusChanged -= OnConnectionStatusChanged;
+            _socketMessageComponator.OnReceivedMessage -= OnSocketMessageComponatorReceivedMessage;
+
+            if (_networkClient.IsConnected)
+            {
+                _networkClient.DisconnectAsync();
+            }
+
+            _networkClient.Dispose();
+            _socketMessageComponator.Dispose();
+
+            _receiver = null;
+            _isDiscarded = true;
         }   
 
         private void OnReceived(byte[] buffer, long offset, long size)

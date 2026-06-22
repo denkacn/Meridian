@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
-using System.Threading.Tasks;
 using MeridianServerLib.EncodingLayer.Componators;
 using MeridianServerLib.EncodingLayer.Convertors;
 using MeridianServerLib.EncodingLayer.DataObjects;
@@ -31,9 +30,11 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         private bool _isBusy = false;
         private int _messageId = 0;
 
+        private readonly object _sendLock = new object();
         private readonly Queue<OperationData> _operations;
 
         private readonly ISocketMessageComponator _socketMessageComponator;
+        private bool _isSocketMessageComponatorDisposed;
 
         public ServerPeerSession(string id, TcpServer server, ILogger logger) : base(server)
         {
@@ -51,9 +52,10 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
 
         public void Send(OperationData operationData)
         {
-            _operations.Enqueue(operationData);
-
-            CheckOperationDataQueue();
+            if (EnqueueAndTryBeginSend(operationData, out var nextOperationData, out var messageId))
+            {
+                DecodeAndSend(nextOperationData, messageId);
+            }
         }
 
         public void Update()
@@ -71,6 +73,8 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         protected override void OnDisconnected()
         {
             _logger?.Log($"[NetworkSession] ({_id}) Session with Id {Id} disconnected!");
+
+            DisposeSocketMessageComponator();
             
             DisconnectedEventHandler?.Invoke(this, EventArgs.Empty);
         }
@@ -99,7 +103,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             {
                 var dataPack = _encoder.Encode(message, _logger);
                 var operationData = _convertor.From(dataPack);
-				_ = ReceivedEventAsync(operationData);
+				ReceivedEvent(operationData);
 			}
             catch (MeridianEncoderException ex)
             {
@@ -113,9 +117,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
 
         protected override void OnEmpty()
         {
-            _isBusy = false;
-
-            CheckOperationDataQueue();
+            MarkSendCompletedAndTrySendNext();
         }
 
         protected override void OnError(SocketError error)
@@ -125,42 +127,121 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             ErrorEventHandler?.Invoke(this, error.ToString());
         }
 
-        private void CheckOperationDataQueue()
+        protected override void Dispose(bool disposingManagedResources)
         {
-            if (!_isBusy && _operations.Count > 0)
+            if (disposingManagedResources)
             {
-                DecodeAndSend(_operations.Dequeue());
+                DisposeSocketMessageComponator();
+            }
+
+            base.Dispose(disposingManagedResources);
+        }
+
+        private void DisposeSocketMessageComponator()
+        {
+            lock (_sendLock)
+            {
+                if (_isSocketMessageComponatorDisposed)
+                {
+                    return;
+                }
+
+                _operations.Clear();
+                _isBusy = false;
+                _isSocketMessageComponatorDisposed = true;
+            }
+
+            _socketMessageComponator.OnReceivedMessage -= OnSocketMessageComponatorReceivedMessage;
+            _socketMessageComponator.Dispose();
+        }
+
+        private bool EnqueueAndTryBeginSend(OperationData operationData, out OperationData nextOperationData, out int messageId)
+        {
+            lock (_sendLock)
+            {
+                if (_isSocketMessageComponatorDisposed)
+                {
+                    nextOperationData = default;
+                    messageId = 0;
+                    return false;
+                }
+
+                _operations.Enqueue(operationData);
+
+                return TryBeginSendLocked(out nextOperationData, out messageId);
             }
         }
 
-        private void DecodeAndSend(OperationData operationData)
+        private bool TryBeginSendLocked(out OperationData operationData, out int messageId)
+        {
+            operationData = default;
+            messageId = 0;
+
+            if (_isBusy || _operations.Count == 0)
+            {
+                return false;
+            }
+
+            _isBusy = true;
+            _messageId++;
+
+            operationData = _operations.Dequeue();
+            messageId = _messageId;
+
+            return true;
+        }
+
+        private void MarkSendCompletedAndTrySendNext()
+        {
+            OperationData nextOperationData;
+            int messageId;
+
+            lock (_sendLock)
+            {
+                if (_isSocketMessageComponatorDisposed)
+                {
+                    return;
+                }
+
+                _isBusy = false;
+
+                if (!TryBeginSendLocked(out nextOperationData, out messageId))
+                {
+                    return;
+                }
+            }
+
+            DecodeAndSend(nextOperationData, messageId);
+        }
+
+        private void DecodeAndSend(OperationData operationData, int messageId)
         {
             try
             {
-                _isBusy = true;
-                _messageId++;
-
                 var packData = _convertor.To(operationData);
                 var sendBytes = _encoder.Decode(packData, _logger);
-                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWithHeader(_messageId, sendBytes);
+                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWithHeader(messageId, sendBytes);
 
                 //_logger.Log("[ServerPeerSession MeridianEncoder] Send " + operationData.OperationCode + " Length: " + sendBytesWithHeader.Length);
 
-                SendAsync(sendBytesWithHeader);
+                if (!SendAsync(sendBytesWithHeader))
+                {
+                    throw new InvalidOperationException("SendAsync returned false.");
+                }
             }
             catch (MeridianEncoderException ex)
             {
                 _logger?.LogError($"[ServerPeerSession MeridianEncoderException] ({_id}) Error Send", ex);
-                _isBusy = false;
+                MarkSendCompletedAndTrySendNext();
             }
             catch (Exception ex)
             {
                 _logger?.LogError($"[ServerPeerSession Exception] ({_id}) Error Send", ex);
-                _isBusy = false;
+                MarkSendCompletedAndTrySendNext();
             }
         }
 
-        private async Task ReceivedEventAsync(OperationData operationData)
+        private void ReceivedEvent(OperationData operationData)
         {
 	        ReceivedEventHandler?.Invoke(this, operationData);
 	        //await Task.Run(() => { ReceivedEventHandler?.Invoke(this, operationData); });  
