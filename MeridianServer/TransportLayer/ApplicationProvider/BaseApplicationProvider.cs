@@ -6,6 +6,8 @@ using MeridianServerLib.Interfaces.Server;
 using MeridianServerLib.LogsLayer.Interfaces;
 using System;
 using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace MeridianServer.TransportLayer.ApplicationProvider
 {
@@ -19,6 +21,8 @@ namespace MeridianServer.TransportLayer.ApplicationProvider
 		private readonly IServer _server;
 		private readonly ILogger _logger;
 		private readonly IMeridianApplication _applicationLogic;
+		private Task _setupTask = Task.CompletedTask;
+		private CancellationTokenSource _applicationCancellationTokenSource = new CancellationTokenSource();
 
 		public BaseApplicationProvider(string id, TransportParams transportParams, IMeridianApplication applicationLogic, string path, ILogger logger)
 		{
@@ -57,21 +61,98 @@ namespace MeridianServer.TransportLayer.ApplicationProvider
 		{
 			_logger?.Log("[BaseApplicationProvider] OnServerStarted");
 
-			_applicationLogic.Setup(_id, _path);
+			ResetApplicationCancellationTokenSource();
+			_setupTask = SetupApplicationAsync(_applicationCancellationTokenSource.Token);
 		}
 
 		private void OnServerStopped(object sender, EventArgs e)
 		{
 			_logger?.Log("[BaseApplicationProvider] OnServerStopped");
 
-			_applicationLogic.Discard();
+			_applicationCancellationTokenSource.Cancel();
+			_ = DiscardApplicationAsync();
 		}
 
 		private void OnServerConnected(object sender, ServerPeerSession peerSession)
 		{
 			_logger?.Log("[BaseApplicationProvider] OnServerConnected");
 
-			_applicationLogic.InitServerPeer(peerSession);
+			_ = InitServerPeerAsync(peerSession, _applicationCancellationTokenSource.Token);
+		}
+
+		private async Task SetupApplicationAsync(CancellationToken cancellationToken)
+		{
+			try
+			{
+				if (_applicationLogic is IAsyncMeridianApplication asyncApplication)
+				{
+					await asyncApplication.SetupAsync(_id, _path, cancellationToken).ConfigureAwait(false);
+				}
+				else
+				{
+					_applicationLogic.Setup(_id, _path);
+				}
+			}
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			{
+			}
+			catch (Exception ex)
+			{
+				_logger?.LogError($"[BaseApplicationProvider] ({_id}) Application setup error", ex);
+			}
+		}
+
+		private async Task InitServerPeerAsync(IServerPeerSession peerSession, CancellationToken cancellationToken)
+		{
+			try
+			{
+				await _setupTask.ConfigureAwait(false);
+				if (_applicationLogic is IAsyncMeridianApplication asyncApplication)
+				{
+					await asyncApplication.InitServerPeerAsync(peerSession, cancellationToken).ConfigureAwait(false);
+				}
+				else
+				{
+					_applicationLogic.InitServerPeer(peerSession);
+				}
+			}
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			{
+			}
+			catch (Exception ex)
+			{
+				_logger?.LogError($"[BaseApplicationProvider] ({_id}) Application peer init error", ex);
+			}
+		}
+
+		private async Task DiscardApplicationAsync()
+		{
+			try
+			{
+				if (_applicationLogic is IAsyncMeridianApplication asyncApplication)
+				{
+					await asyncApplication.DiscardAsync(CancellationToken.None).ConfigureAwait(false);
+				}
+				else
+				{
+					_applicationLogic.Discard();
+				}
+			}
+			catch (Exception ex)
+			{
+				_logger?.LogError($"[BaseApplicationProvider] ({_id}) Application discard error", ex);
+			}
+		}
+
+		private void ResetApplicationCancellationTokenSource()
+		{
+			if (!_applicationCancellationTokenSource.IsCancellationRequested)
+			{
+				return;
+			}
+
+			_applicationCancellationTokenSource.Dispose();
+			_applicationCancellationTokenSource = new CancellationTokenSource();
 		}
 	}
 }

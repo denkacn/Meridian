@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Channels;
+using System.Threading.Tasks;
 using MeridianServerLib.EncodingLayer.Componators;
 using MeridianServerLib.EncodingLayer.Encoders;
 using MeridianServerLib.EncodingLayer.Interfaces;
@@ -17,6 +20,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         public event EventHandler ConnectedEventHandler;
         public event EventHandler DisconnectedEventHandler;
         public event EventHandler<OperationData> ReceivedEventHandler;
+        public event AsyncOperationReceivedEventHandler ReceivedAsyncEventHandler;
         public event EventHandler<string> ErrorEventHandler;
 
         public string SessionId => Id.ToString();
@@ -32,6 +36,9 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
 
         private readonly ISocketMessageComponator _socketMessageComponator;
         private bool _isSocketMessageComponatorDisposed;
+        private readonly CancellationTokenSource _disposeCancellationTokenSource;
+        private readonly Channel<OperationData> _incomingOperations;
+        private readonly Task _incomingProcessingTask;
 
         public ServerPeerSession(string id, TcpServer server, ILogger logger) : base(server)
         {
@@ -40,10 +47,18 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             _id = id;
 			_operations = new Queue<OperationData>();
             _encoder = new MessagePackEncoder<OperationData>();
+            _disposeCancellationTokenSource = new CancellationTokenSource();
+            _incomingOperations = Channel.CreateUnbounded<OperationData>(new UnboundedChannelOptions
+            {
+                SingleReader = true,
+                SingleWriter = false,
+                AllowSynchronousContinuations = false
+            });
 
             _socketMessageComponator = new HeaderSocketMessageComponatorV3(logger);
 
             _socketMessageComponator.OnReceivedMessage += OnSocketMessageComponatorReceivedMessage;
+            _incomingProcessingTask = ProcessIncomingOperationsAsync(_disposeCancellationTokenSource.Token);
         }
 
         public void Send(OperationData operationData)
@@ -63,7 +78,14 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         {
             _logger?.Log($"[NetworkSession] ({_id}) Session with Id {Id} connected! UserToken: " + userToken);
 
-            ConnectedEventHandler?.Invoke(this, EventArgs.Empty);
+            try
+            {
+                ConnectedEventHandler?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"[ServerPeerSession] ({_id}) Error On Connected", ex);
+            }
         }
 
         protected override void OnDisconnected()
@@ -72,7 +94,14 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
 
             DisposeSocketMessageComponator();
             
-            DisconnectedEventHandler?.Invoke(this, EventArgs.Empty);
+            try
+            {
+                DisconnectedEventHandler?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"[ServerPeerSession] ({_id}) Error On Disconnected", ex);
+            }
         }
 
         protected override void OnReceived(byte[] buffer, long offset, long size)
@@ -98,7 +127,10 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             try
             {
                 var operationData = _encoder.Deserialize(message, _logger);
-				ReceivedEvent(operationData);
+                if (!_incomingOperations.Writer.TryWrite(operationData))
+                {
+                    _logger?.Log($"[ServerPeerSession] ({_id}) Incoming operation queue is closed");
+                }
 			}
             catch (MeridianEncoderException ex)
             {
@@ -146,6 +178,8 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
                 _isSocketMessageComponatorDisposed = true;
             }
 
+            _disposeCancellationTokenSource.Cancel();
+            _incomingOperations.Writer.TryComplete();
             _socketMessageComponator.OnReceivedMessage -= OnSocketMessageComponatorReceivedMessage;
             _socketMessageComponator.Dispose();
         }
@@ -236,10 +270,61 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             }
         }
 
-        private void ReceivedEvent(OperationData operationData)
+        private async Task ProcessIncomingOperationsAsync(CancellationToken cancellationToken)
         {
-	        ReceivedEventHandler?.Invoke(this, operationData);
-	        //await Task.Run(() => { ReceivedEventHandler?.Invoke(this, operationData); });  
+            try
+            {
+                await foreach (var operationData in _incomingOperations.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    await ProcessIncomingOperationAsync(operationData, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"[ServerPeerSession] ({_id}) Incoming operation worker error", ex);
+            }
+        }
+
+        private async Task ProcessIncomingOperationAsync(OperationData operationData, CancellationToken cancellationToken)
+        {
+            try
+            {
+                ReceivedEventHandler?.Invoke(this, operationData);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"[ServerPeerSession] ({_id}) Error On Sync Received", ex);
+            }
+
+            await InvokeReceivedAsyncEventHandlers(operationData, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task InvokeReceivedAsyncEventHandlers(OperationData operationData, CancellationToken cancellationToken)
+        {
+            var handlers = ReceivedAsyncEventHandler;
+            if (handlers == null)
+            {
+                return;
+            }
+
+            foreach (AsyncOperationReceivedEventHandler handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    await handler(this, operationData, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError($"[ServerPeerSession] ({_id}) Error On Async Received", ex);
+                }
+            }
         }
     }
 }
