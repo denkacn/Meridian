@@ -79,7 +79,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         {
             try
             {
-                _logger?.Log($"[ServerPeerSession MeridianEncoderException] ({_id}) OnReceived: {buffer.Length} size: {size}");
+                //_logger?.Log($"[ServerPeerSession MeridianEncoderException] ({_id}) OnReceived: {buffer.Length} size: {size}");
 
                 _socketMessageComponator.Received(buffer, (int)offset, (int)size);
             }

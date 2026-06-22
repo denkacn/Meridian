@@ -37,7 +37,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 
 			Buffer.BlockCopy(message, 0, buffer, HeaderSize, message.Length);
 
-			_logger?.Log($"[Componator] CreateMessageWithHeader {totalSize}");
+			//_logger?.Log($"[Componator] CreateMessageWithHeader {totalSize}");
 
 			return buffer;
 		}
@@ -58,7 +58,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 
 				if (_receiveBuffer[readPos] != StartSymbol)
 				{
-					_logger?.Log("[Componator] Invalid start symbol, skip byte");
+					//_logger?.Log("[Componator] Invalid start symbol, skip byte");
 					readPos += 1;
 					continue;
 				}
@@ -68,7 +68,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 
 				if (totalSize < HeaderSize)
 				{
-					_logger?.Log("[Componator] Invalid message size");
+					//_logger?.Log("[Componator] Invalid message size");
 					readPos += 1;
 					continue;
 				}
@@ -96,7 +96,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 			var payload = new byte[payloadLength];
 			Buffer.BlockCopy(buffer, HeaderSize, payload, 0, payloadLength);
 
-			_logger?.Log($"[Componator] Received messageId={messageId}, size={payloadLength}");
+			//_logger?.Log($"[Componator] Received messageId={messageId}, size={payloadLength}");
 			OnReceivedMessage?.Invoke(payload);
 		}
 

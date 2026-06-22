@@ -29,6 +29,8 @@ namespace MeridianMasterClientRunner.Network.Client
 
 		private void ConnectToServer()
 		{
+			Console.WriteLine("Try ConnectToServer");
+
 			_meridianClient = new MeridianClient(this);
 			_meridianClient.ServerStatusChanged += OnServerStatusChanged;
 
@@ -87,7 +89,7 @@ namespace MeridianMasterClientRunner.Network.Client
 
 			var registrationParameters = new Dictionary<byte, object>
 			{
-				{ 1, McrNetworkCommandType.MCR_REGISTR },
+				{ 1, McrNetworkCommandType.MCR_SET_STATUS },
 				{ 2, _uid },
 				{ 3, statusBytes }
 			};
