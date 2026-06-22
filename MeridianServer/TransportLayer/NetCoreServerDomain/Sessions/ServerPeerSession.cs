@@ -213,7 +213,9 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         {
             try
             {
-                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWithHeader(messageId, operationData, _encoder, _logger);
+                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWithHeader(
+                    messageId,
+                    writer => _encoder.Serialize(writer, operationData, _logger));
 
                 //_logger.Log("[ServerPeerSession MeridianEncoder] Send " + operationData.OperationCode + " Length: " + sendBytesWithHeader.Length);
 

@@ -79,7 +79,9 @@ namespace MeridianServerLib.Models.Client
             {
                 _messageId++;
 
-                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWithHeader(_messageId, operation, _encoder, _logger);
+                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWithHeader(
+                    _messageId,
+                    writer => _encoder.Serialize(writer, operation, _logger));
 
                 return _networkClient.SendAsync(sendBytesWithHeader.Span);
             }

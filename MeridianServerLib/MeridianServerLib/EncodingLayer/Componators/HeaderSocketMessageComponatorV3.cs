@@ -3,7 +3,6 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
-using MeridianServerLib.EncodingLayer.Interfaces;
 
 namespace MeridianServerLib.EncodingLayer.Componators
 {
@@ -46,7 +45,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 			return buffer;
 		}
 
-		public ReadOnlyMemory<byte> CreateMessageWithHeader<T>(int messageId, T message, IBinaryEncoder<T> encoder, ILogger logger = null)
+		public ReadOnlyMemory<byte> CreateMessageWithHeader(int messageId, Action<IBufferWriter<byte>> writePayload)
 		{
 			if (_isDisposed)
 			{
@@ -56,7 +55,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 			var writer = new ArrayBufferWriter<byte>();
 			writer.Advance(HeaderSize);
 
-			encoder.Serialize(writer, message, logger);
+			writePayload(writer);
 
 			if (!MemoryMarshal.TryGetArray(writer.WrittenMemory, out var segment) || segment.Array == null)
 			{

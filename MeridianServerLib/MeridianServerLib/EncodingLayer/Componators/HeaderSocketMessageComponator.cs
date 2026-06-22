@@ -1,7 +1,7 @@
 ﻿using MeridianServerLib.EncodingLayer.Tools;
-using MeridianServerLib.EncodingLayer.Interfaces;
 using MeridianServerLib.LogsLayer.Interfaces;
 using System;
+using System.Buffers;
 
 namespace MeridianServerLib.EncodingLayer.Componators
 {
@@ -35,9 +35,11 @@ namespace MeridianServerLib.EncodingLayer.Componators
             return result;
         }
 
-        public ReadOnlyMemory<byte> CreateMessageWithHeader<T>(int messageId, T message, IBinaryEncoder<T> encoder, ILogger logger = null)
+        public ReadOnlyMemory<byte> CreateMessageWithHeader(int messageId, Action<IBufferWriter<byte>> writePayload)
         {
-            return CreateMessageWithHeader(messageId, encoder.Serialize(message, logger));
+            var writer = new ArrayBufferWriter<byte>();
+            writePayload(writer);
+            return CreateMessageWithHeader(messageId, writer.WrittenMemory.ToArray());
         }
 
         public void Received(byte[] buffer, int offset, int size)
