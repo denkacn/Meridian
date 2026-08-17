@@ -10,8 +10,11 @@ namespace MeridianServerLib.EncodingLayer.Componators
 	{
 		public event Action<byte[]> OnReceivedMessage;
 
-		private const int HeaderSize = 10;
-		private const byte StartSymbol = (byte)'@';
+		private const int HeaderSize = 12;
+		private const byte MagicByte0 = (byte)'M';
+		private const byte MagicByte1 = (byte)'R';
+		private const byte ProtocolVersion = 1;
+		private const byte Flags = 0;
 
 		private readonly ILogger _logger;
 
@@ -36,7 +39,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 			var totalSize = HeaderSize + message.Length;
 			var buffer = new byte[totalSize];
 
-			WriteHeader(buffer.AsSpan(0, HeaderSize), messageId, totalSize);
+			WriteHeader(buffer.AsSpan(0, HeaderSize), messageId, message.Length);
 
 			Buffer.BlockCopy(message, 0, buffer, HeaderSize, message.Length);
 
@@ -62,7 +65,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 				throw new InvalidOperationException("Unable to access packet buffer.");
 			}
 
-			WriteHeader(segment.Array.AsSpan(segment.Offset, HeaderSize), messageId, writer.WrittenCount);
+			WriteHeader(segment.Array.AsSpan(segment.Offset, HeaderSize), messageId, writer.WrittenCount - HeaderSize);
 
 			return writer.WrittenMemory;
 		}
@@ -86,26 +89,35 @@ namespace MeridianServerLib.EncodingLayer.Componators
 			{
 				if (_bufferCount - readPos < HeaderSize) break;
 
-				if (_receiveBuffer[readPos] != StartSymbol)
+				if (!IsValidHeaderStart(readPos))
 				{
-					//_logger?.Log("[Componator] Invalid start symbol, skip byte");
+					//_logger?.Log("[Componator] Invalid packet magic, skip byte");
 					readPos += 1;
 					continue;
 				}
 
-				var messageId = BinaryPrimitives.ReadInt32LittleEndian(_receiveBuffer.AsSpan(readPos + 2, 4));
-				var totalSize = BinaryPrimitives.ReadInt32LittleEndian(_receiveBuffer.AsSpan(readPos + 6, 4));
-
-				if (totalSize < HeaderSize)
+				var version = _receiveBuffer[readPos + 2];
+				if (version != ProtocolVersion)
 				{
-					//_logger?.Log("[Componator] Invalid message size");
+					//_logger?.Log("[Componator] Invalid protocol version");
 					readPos += 1;
 					continue;
 				}
 
+				var messageId = BinaryPrimitives.ReadInt32LittleEndian(_receiveBuffer.AsSpan(readPos + 4, 4));
+				var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(_receiveBuffer.AsSpan(readPos + 8, 4));
+
+				if (payloadLength < 0)
+				{
+					//_logger?.Log("[Componator] Invalid payload size");
+					readPos += 1;
+					continue;
+				}
+
+				var totalSize = HeaderSize + payloadLength;
 				if (_bufferCount - readPos < totalSize) break;
 
-				HandleFullMessage(messageId, readPos, totalSize);
+				HandleFullMessage(messageId, readPos, payloadLength);
 
 				readPos += totalSize;
 			}
@@ -117,9 +129,8 @@ namespace MeridianServerLib.EncodingLayer.Componators
 			}
 		}
 
-		private void HandleFullMessage(int messageId, int messageOffset, int size)
+		private void HandleFullMessage(int messageId, int messageOffset, int payloadLength)
 		{
-			var payloadLength = size - HeaderSize;
 			var payload = new byte[payloadLength];
 			Buffer.BlockCopy(_receiveBuffer, messageOffset + HeaderSize, payload, 0, payloadLength);
 
@@ -138,13 +149,20 @@ namespace MeridianServerLib.EncodingLayer.Componators
 			_receiveBuffer = newBuffer;
 		}
 
-		private static void WriteHeader(Span<byte> header, int messageId, int totalSize)
+		private bool IsValidHeaderStart(int offset)
 		{
-			header[0] = StartSymbol;
-			header[1] = 0;
+			return _receiveBuffer[offset] == MagicByte0 && _receiveBuffer[offset + 1] == MagicByte1;
+		}
 
-			BinaryPrimitives.WriteInt32LittleEndian(header.Slice(2, 4), messageId);
-			BinaryPrimitives.WriteInt32LittleEndian(header.Slice(6, 4), totalSize);
+		private static void WriteHeader(Span<byte> header, int messageId, int payloadLength)
+		{
+			header[0] = MagicByte0;
+			header[1] = MagicByte1;
+			header[2] = ProtocolVersion;
+			header[3] = Flags;
+
+			BinaryPrimitives.WriteInt32LittleEndian(header.Slice(4, 4), messageId);
+			BinaryPrimitives.WriteInt32LittleEndian(header.Slice(8, 4), payloadLength);
 		}
 
 		public void Dispose()
