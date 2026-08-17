@@ -1,0 +1,25 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30011.22
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MeridianRequestSystem", "MeridianRequestSystem\MeridianRequestSystem.csproj", "{EDFE5EB0-F0E5-4EB3-ABBD-8BA412FF8B40}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{EDFE5EB0-F0E5-4EB3-ABBD-8BA412FF8B40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EDFE5EB0-F0E5-4EB3-ABBD-8BA412FF8B40}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EDFE5EB0-F0E5-4EB3-ABBD-8BA412FF8B40}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EDFE5EB0-F0E5-4EB3-ABBD-8BA412FF8B40}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C09C8A55-7DC9-4281-A32D-7AF4C188406A}
+	EndGlobalSection
+EndGlobal

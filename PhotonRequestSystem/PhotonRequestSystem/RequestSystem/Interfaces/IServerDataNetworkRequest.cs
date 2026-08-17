@@ -1,0 +1,14 @@
+﻿using System;
+using System.Collections.Generic;
+using PhotonRequestSystem.RequestSystem.Client;
+
+namespace PhotonRequestSystem.RequestSystem.Interfaces
+{
+    public interface IServerDataNetworkRequest
+    {
+        bool IsAsync { get; }
+        IDataNetworkResponse Execute(IUserClient client);
+        void Execute(IUserClient client, Action<IDataNetworkResponse> executeResponse);
+        void Map(Dictionary<byte, object> package);
+    }
+}
