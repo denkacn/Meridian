@@ -8,7 +8,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 {
 	public class HeaderSocketMessageComponatorV3 : ISocketMessageComponator
 	{
-		public event Action<byte[]> OnReceivedMessage;
+		public event Action<ReadOnlyMemory<byte>> OnReceivedMessage;
 
 		private const int HeaderSize = 12;
 		private const byte MagicByte0 = (byte)'M';
@@ -17,16 +17,19 @@ namespace MeridianServerLib.EncodingLayer.Componators
 		private const byte Flags = 0;
 
 		private readonly ILogger _logger;
+		private readonly object _sendLock = new object();
 
 		private byte[] _receiveBuffer;
 		private int _bufferCount;
 		private bool _isDisposed;
+		private ArrayBufferWriter<byte> _sendWriter;
 
 		public HeaderSocketMessageComponatorV3(ILogger logger = null, int initialBufferSize = 64 * 1024)
 		{
 			_logger = logger;
 			_receiveBuffer = ArrayPool<byte>.Shared.Rent(initialBufferSize);
 			_bufferCount = 0;
+			_sendWriter = new ArrayBufferWriter<byte>(initialBufferSize);
 		}
 
 		public byte[] CreateMessageWithHeader(int messageId, byte[] message)
@@ -55,19 +58,22 @@ namespace MeridianServerLib.EncodingLayer.Componators
 				throw new ObjectDisposedException(nameof(HeaderSocketMessageComponatorV3));
 			}
 
-			var writer = new ArrayBufferWriter<byte>(HeaderSize);
-			writer.Advance(HeaderSize);
-
-			writePayload(writer);
-
-			if (!MemoryMarshal.TryGetArray(writer.WrittenMemory, out var segment) || segment.Array == null)
+			lock (_sendLock)
 			{
-				throw new InvalidOperationException("Unable to access packet buffer.");
+				_sendWriter.Clear();
+				_sendWriter.Advance(HeaderSize);
+
+				writePayload(_sendWriter);
+
+				if (!MemoryMarshal.TryGetArray(_sendWriter.WrittenMemory, out var segment) || segment.Array == null)
+				{
+					throw new InvalidOperationException("Unable to access packet buffer.");
+				}
+
+				WriteHeader(segment.Array.AsSpan(segment.Offset, HeaderSize), messageId, _sendWriter.WrittenCount - HeaderSize);
+
+				return _sendWriter.WrittenMemory;
 			}
-
-			WriteHeader(segment.Array.AsSpan(segment.Offset, HeaderSize), messageId, writer.WrittenCount - HeaderSize);
-
-			return writer.WrittenMemory;
 		}
 
 
@@ -131,11 +137,8 @@ namespace MeridianServerLib.EncodingLayer.Componators
 
 		private void HandleFullMessage(int messageId, int messageOffset, int payloadLength)
 		{
-			var payload = new byte[payloadLength];
-			Buffer.BlockCopy(_receiveBuffer, messageOffset + HeaderSize, payload, 0, payloadLength);
-
 			//_logger?.Log($"[Componator] Received messageId={messageId}, size={payloadLength}");
-			OnReceivedMessage?.Invoke(payload);
+			OnReceivedMessage?.Invoke(_receiveBuffer.AsMemory(messageOffset + HeaderSize, payloadLength));
 		}
 
 		private void EnsureCapacity(int neededSize)
@@ -177,7 +180,8 @@ namespace MeridianServerLib.EncodingLayer.Componators
 			if (_receiveBuffer != null)
 			{
 				ArrayPool<byte>.Shared.Return(_receiveBuffer);
-				_receiveBuffer = null;
+			_receiveBuffer = null;
+			_sendWriter = null;
 			}
 
 			_bufferCount = 0;

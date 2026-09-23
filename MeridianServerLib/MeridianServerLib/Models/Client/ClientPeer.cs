@@ -21,6 +21,7 @@ namespace MeridianServerLib.Models.Client
         private readonly IBinaryEncoder<OperationData> _encoder;
         private readonly NetworkClient _networkClient;
         private readonly ILogger _logger;
+        private readonly object _sendLock = new object();
         
         private IOperationsReceiver _receiver;
         private readonly ISocketMessageComponator _socketMessageComponator;
@@ -77,13 +78,16 @@ namespace MeridianServerLib.Models.Client
 
             try
             {
-                _messageId++;
+                lock (_sendLock)
+                {
+                    _messageId++;
 
-                var sendBytesWithHeader = _socketMessageComponator.CreateMessageWithHeader(
-                    _messageId,
-                    writer => _encoder.Serialize(writer, operation, _logger));
+                    var sendBytesWithHeader = _socketMessageComponator.CreateMessageWithHeader(
+                        _messageId,
+                        writer => _encoder.Serialize(writer, operation, _logger));
 
-                return _networkClient.SendAsync(sendBytesWithHeader.Span);
+                    return _networkClient.SendAsync(sendBytesWithHeader.Span);
+                }
             }
             catch (MeridianEncoderException ex)
             {
@@ -129,7 +133,7 @@ namespace MeridianServerLib.Models.Client
             _socketMessageComponator.Received(buffer, (int)offset, (int)size);    
         }
 
-        private void OnSocketMessageComponatorReceivedMessage(byte[] message)
+        private void OnSocketMessageComponatorReceivedMessage(ReadOnlyMemory<byte> message)
         {
             try
             {

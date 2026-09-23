@@ -9,7 +9,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 	[Obsolete("HeaderSocketMessageComponatorV3", true)]
 	public class HeaderSocketMessageComponatorV2 : ISocketMessageComponator
 	{
-		public event Action<byte[]> OnReceivedMessage;
+		public event Action<ReadOnlyMemory<byte>> OnReceivedMessage;
 
 		private const int HeaderSize = 10;
 		private const byte StartSymbol = (byte)'@';

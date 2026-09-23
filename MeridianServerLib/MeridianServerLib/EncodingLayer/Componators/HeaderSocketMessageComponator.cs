@@ -8,7 +8,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
     [Obsolete("HeaderSocketMessageComponatorV3", true)]
     public class HeaderSocketMessageComponator : ISocketMessageComponator
     {
-        public event Action<byte[]> OnReceivedMessage;
+        public event Action<ReadOnlyMemory<byte>> OnReceivedMessage;
 
         private const int _headerSize = 10;
 

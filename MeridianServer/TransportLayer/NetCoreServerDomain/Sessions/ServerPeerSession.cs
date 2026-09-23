@@ -122,7 +122,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             }
         }
 
-        private void OnSocketMessageComponatorReceivedMessage(byte[] message)
+        private void OnSocketMessageComponatorReceivedMessage(ReadOnlyMemory<byte> message)
         {        
             try
             {
