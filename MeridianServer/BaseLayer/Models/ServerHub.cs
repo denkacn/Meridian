@@ -5,12 +5,10 @@ using System.Threading.Tasks;
 using MeridianServer.BaseLayer.Interfaces;
 using MeridianServer.ControlLayer.Interfaces;
 using MeridianServer.ControlLayer.Models;
-using MeridianServer.ExternalLayer.Controllers;
 using MeridianServer.ExternalLayer.ResourcesLoader;
 using MeridianServer.LogsLayer;
 using MeridianServer.TransportLayer.Interfaces;
 using MeridianServer.TransportLayer.Models;
-using MeridianServerLib.Exceptions;
 using MeridianServerLib.Models.Server;
 
 namespace MeridianServer.BaseLayer.Models
@@ -103,33 +101,15 @@ namespace MeridianServer.BaseLayer.Models
 			foreach (var layer in _serverSettings.Layers)
 			{
                 var path = Path.Combine(BaseDirectory, layer.PathToExternalApplicationLib);
-				MeridianApplication meridianApplication;
-
-                try
-                {
-                    meridianApplication = (MeridianApplication)ExternalApplicationController.SearchExternalApplication(path);
-                }
-                catch (MeridianExternalLogicException ex)
-                {
-                    throw new MeridianExternalLogicException(
-                        $"Failed to load Meridian layer '{layer.LayerName}' from '{path}'.", ex);
-                }
-
-				meridianApplication.MeridianApplicationCommand += OnMeridianApplicationCommand;
 
                 Console.WriteLine("[ServerHub] Load layer: " + layer.LayerName + " from " + layer.PathToExternalApplicationLib);
 
-				_applicationConfigurations.Add(new MeridianApplicationConfiguration(layer.LayerName, meridianApplication, layer.Port, path));
+				_applicationConfigurations.Add(new MeridianApplicationConfiguration(layer.LayerName, layer.Port, path));
 			}
         }
 
         private void DiscardExternalLayer()
         {
-	        foreach (var application in _applicationConfigurations)
-	        {
-		        application.MeridianApplication.MeridianApplicationCommand -= OnMeridianApplicationCommand;
-			}
-
 	        _applicationConfigurations = null;
 
         }
@@ -162,7 +142,8 @@ namespace MeridianServer.BaseLayer.Models
         private void InitTransportLayer()
         {
             _transport = new Transport(_applicationConfigurations.ToArray(),
-	            _serverSettings.IsDebugEnable ? LoggerExt.Logger : null);
+	            _serverSettings.IsDebugEnable ? LoggerExt.Logger : null,
+	            OnMeridianApplicationCommand);
         }
 
         private void DiscardTransportLayer()

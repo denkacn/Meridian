@@ -9,6 +9,13 @@ namespace MeridianServerLib.Models.Server
 		public int Port;
 		public string Path;
 
+		public MeridianApplicationConfiguration(string id, int port, string path)
+		{
+			Id = id;
+			Port = port;
+			Path = path;
+		}
+
 		public MeridianApplicationConfiguration(string id, IMeridianApplication application, int port, string path)
 		{
 			Id = id;
