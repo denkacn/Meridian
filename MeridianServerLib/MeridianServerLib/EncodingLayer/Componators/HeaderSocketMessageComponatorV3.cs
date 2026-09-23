@@ -55,7 +55,7 @@ namespace MeridianServerLib.EncodingLayer.Componators
 				throw new ObjectDisposedException(nameof(HeaderSocketMessageComponatorV3));
 			}
 
-			var writer = new ArrayBufferWriter<byte>();
+			var writer = new ArrayBufferWriter<byte>(HeaderSize);
 			writer.Advance(HeaderSize);
 
 			writePayload(writer);

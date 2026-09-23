@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>MeridianTestLogic</RootNamespace>
+    <AssemblyName>MeridianTestLogic</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MeridianServerLib\MeridianServerLib\MeridianServerLib.csproj" />
+    <ProjectReference Include="..\MeridianRequestSystem\MeridianRequestSystem\MeridianRequestSystem.csproj" />
+    <ProjectReference Include="..\MeridianTestContracts\MeridianTestContracts.csproj" />
+  </ItemGroup>
+
+</Project>
