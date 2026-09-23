@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using MeridianRequestSystem.RequestSystem.Attributes;
 using MeridianRequestSystem.RequestSystem.Constants;
+using MeridianRequestSystem.RequestSystem.Helpers;
 using MeridianRequestSystem.RequestSystem.Interfaces;
 using MeridianRequestSystem.RequestSystem.Utilities;
 
@@ -33,7 +34,7 @@ namespace MeridianRequestSystem.RequestSystem.Creators
             if (!_requestMap.TryGetValue(requestCode, out var requestType)) return null;
 
             var request = (IServerDataNetworkRequest)Activator.CreateInstance(requestType);
-            request.Map(package);
+            RequestMapper.AutoMap(request, package);
 
             return _dependencyInjector?.Inject(request) ?? request;
         }
