@@ -14,6 +14,12 @@ namespace MeridianTestLogic
 {
     public sealed class TestServerPeer : ServerPeer, IUserClient
     {
+        private static readonly bool TraceMessages =
+            string.Equals(
+                Environment.GetEnvironmentVariable("MERIDIAN_TEST_TRACE_MESSAGES"),
+                "1",
+                StringComparison.OrdinalIgnoreCase);
+
         private readonly MeridianServerPeerRequestAdapter _requestAdapter;
 
         public int UserId { get; private set; }
@@ -49,7 +55,11 @@ namespace MeridianTestLogic
             OperationData messageData,
             CancellationToken cancellationToken)
         {
-            Console.WriteLine("[MeridianTestLogic] Received operation: " + messageData.OperationCode);
+            if (TraceMessages)
+            {
+                Console.WriteLine("[MeridianTestLogic] Received operation: " + messageData.OperationCode);
+            }
+
             return _requestAdapter.OnReceivedMessageAsync(sender, messageData, cancellationToken);
         }
 

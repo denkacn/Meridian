@@ -15,6 +15,8 @@ namespace MeridianRequestSystem.RequestSystem.Helpers
     {
         private static readonly ConcurrentDictionary<Type, MemberBinding[]> BindingCache =
             new ConcurrentDictionary<Type, MemberBinding[]>();
+        private static readonly ConcurrentDictionary<Type, RequestBaseAttributeData> RequestBaseAttributeCache =
+            new ConcurrentDictionary<Type, RequestBaseAttributeData>();
 
         public static RequestDataPack GetRequestData(IDataNetworkRequest request)
         {
@@ -32,17 +34,23 @@ namespace MeridianRequestSystem.RequestSystem.Helpers
 
         private static RequestBaseAttributeData GetAttributeData(Type t)
         {
-            var attributeData = (RequestBaseAttribute)Attribute.GetCustomAttribute(t, typeof(RequestBaseAttribute));
-
-            if (attributeData != null)
+            if (RequestBaseAttributeCache.TryGetValue(t, out var cachedData))
             {
-                var requestBaseAttributeData = new RequestBaseAttributeData(attributeData.CommandId,
-                    attributeData.IsNecessarily);
-
-                return requestBaseAttributeData;
+                return cachedData;
             }
 
-            return null;
+            var attributeData = (RequestBaseAttribute)Attribute.GetCustomAttribute(t, typeof(RequestBaseAttribute));
+            if (attributeData == null)
+            {
+                return null;
+            }
+
+            var requestBaseAttributeData = new RequestBaseAttributeData(
+                attributeData.CommandId,
+                attributeData.IsNecessarily);
+
+            RequestBaseAttributeCache.TryAdd(t, requestBaseAttributeData);
+            return requestBaseAttributeData;
         }
 
         public static Dictionary<byte, object> GetFieldAttributeData(object obj)

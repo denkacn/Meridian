@@ -1,0 +1,11 @@
+{
+  "Layers": [
+    {
+      "LayerName": "MeridianTest",
+      "PathToExternalApplicationLib": "MeridianTest/MeridianTestLogic.dll",
+      "Port": 4555
+    }
+  ],
+  "IsDebugEnable": true,
+  "IsAutoStart": true
+}

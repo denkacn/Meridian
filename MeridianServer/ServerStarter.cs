@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using MeridianServer.BaseLayer.Interfaces;
 using MeridianServer.BaseLayer.Models;
@@ -31,7 +32,14 @@ namespace MeridianServer
                 throw;
             }
 
-            Console.ReadLine();
+            if (Console.IsInputRedirected)
+            {
+                Thread.Sleep(Timeout.Infinite);
+            }
+            else
+            {
+                Console.ReadLine();
+            }
         }
         
         //[DllImport("kernel32.dll", SetLastError = true)]

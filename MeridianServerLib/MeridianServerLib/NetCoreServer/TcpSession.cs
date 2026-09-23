@@ -2,6 +2,7 @@ using MeridianServerLib.LogsLayer.Interfaces;
 using MeridianServerLib.Models.Operations;
 using System;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 
@@ -158,6 +159,12 @@ namespace NetCoreServer
 
         private void SetKeepAlive(Socket socket, bool enable, uint keepAliveTime, uint keepAliveInterval)
         {
+	        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+	        {
+		        socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, enable);
+		        return;
+	        }
+
 	        var size = sizeof(uint) * 3;
 	        byte[] inOptionValues = new byte[size];
 
