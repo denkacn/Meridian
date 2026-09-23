@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using MeridianRequestSystem.RequestSystem.Attributes;
 using MeridianRequestSystem.RequestSystem.Requests;
 
@@ -23,13 +22,6 @@ namespace MeridianTestContracts.Responses
         {
             Message = message;
             ServerTimeUtc = DateTime.UtcNow.ToString("O");
-        }
-
-        public override void Map(Dictionary<byte, object> package)
-        {
-            ResponseMap.ReadBase(this, package);
-            Message = ResponseMap.ReadString(package, 10);
-            ServerTimeUtc = ResponseMap.ReadString(package, 11);
         }
     }
 }

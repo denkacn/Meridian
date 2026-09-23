@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using MeridianRequestSystem.RequestSystem.Attributes;
+using MeridianRequestSystem.RequestSystem.Helpers;
 using MeridianRequestSystem.RequestSystem.Interfaces;
 using MeridianRequestSystem.RequestSystem.Utilities;
 
@@ -57,6 +58,9 @@ namespace MeridianRequestSystem.RequestSystem.Requests
             ReturnCode = 99;
         }
 
-        public virtual void Map(Dictionary<byte, object> package) { }
+        public virtual void Map(Dictionary<byte, object> package)
+        {
+            RequestMapper.AutoMap(this, package);
+        }
     }
 }

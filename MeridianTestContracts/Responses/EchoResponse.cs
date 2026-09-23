@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using MeridianRequestSystem.RequestSystem.Attributes;
 using MeridianRequestSystem.RequestSystem.Requests;
 
@@ -22,13 +21,6 @@ namespace MeridianTestContracts.Responses
         {
             Message = message;
             Length = message?.Length ?? 0;
-        }
-
-        public override void Map(Dictionary<byte, object> package)
-        {
-            ResponseMap.ReadBase(this, package);
-            Message = ResponseMap.ReadString(package, 10);
-            Length = ResponseMap.ReadInt(package, 11);
         }
     }
 }
