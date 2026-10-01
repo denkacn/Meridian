@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Bump PATCH for each code change unless a MINOR or MAJOR version is requested. -->
+    <Version>3.0.1</Version>
+  </PropertyGroup>
+</Project>

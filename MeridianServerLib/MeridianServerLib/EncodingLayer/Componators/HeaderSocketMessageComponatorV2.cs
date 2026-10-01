@@ -27,14 +27,14 @@ namespace MeridianServerLib.EncodingLayer.Componators
 			var totalSize = HeaderSize + message.Length;
 			var result = new byte[totalSize];
 
-			// Стартовый байт (1) + паддинг (1)
+			// Start byte (1) and padding byte (1).
 			result[0] = StartSymbol;
-			result[1] = 0; // резерв
+			result[1] = 0; // Reserved.
 
-			// ID (4 байта)
+			// Message ID (4 bytes).
 			BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(2, 4), messageId);
 
-			// Длина (4 байта)
+			// Total length (4 bytes).
 			BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(6, 4), totalSize);
 
 			// Payload
@@ -62,12 +62,12 @@ namespace MeridianServerLib.EncodingLayer.Componators
 				{
 					if (span.Length < HeaderSize)
 					{
-						// Недостаточно байт для заголовка
+						// Not enough bytes for the header.
 						_receivedMessage = new ReceivedMessage(span.ToArray(), HeaderSize);
 						return;
 					}
 
-					// Парсим заголовок
+					// Parse the header.
 					var startSymbol = span[0];
 					if (startSymbol != StartSymbol)
 					{
@@ -86,14 +86,14 @@ namespace MeridianServerLib.EncodingLayer.Componators
 
 					if (span.Length >= totalSize)
 					{
-						// Целое сообщение в буфере
+						// The buffer contains a complete message.
 						var fullMessage = span.Slice(0, totalSize).ToArray();
 						HandleFullMessage(fullMessage);
 						span = span.Slice(totalSize);
 					}
 					else
 					{
-						// Часть сообщения
+						// The buffer contains a partial message.
 						var partial = span.ToArray();
 						_receivedMessage = new ReceivedMessage(partial, totalSize);
 						return;

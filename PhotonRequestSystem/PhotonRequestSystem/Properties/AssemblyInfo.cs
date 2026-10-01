@@ -2,9 +2,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-// Общие сведения об этой сборке предоставляются следующим набором
-// набора атрибутов. Измените значения этих атрибутов для изменения сведений,
-// связанные со сборкой.
+// These attributes provide general information about the assembly.
 [assembly: AssemblyTitle("PhotonRequestSystem")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
@@ -14,23 +12,14 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
-// Установка значения False для параметра ComVisible делает типы в этой сборке невидимыми
-// для компонентов COM. Если необходимо обратиться к типу в этой сборке через
-// COM, задайте атрибуту ComVisible значение TRUE для этого типа.
+// ComVisible(false) hides the assembly's types from COM components.
 [assembly: ComVisible(false)]
 
-// Следующий GUID служит для идентификации библиотеки типов, если этот проект будет видимым для COM
+// This GUID identifies the type library if the assembly is exposed to COM.
 [assembly: Guid("edfe5eb0-f0e5-4eb3-abbd-8ba412ff8b40")]
 
-// Сведения о версии сборки состоят из указанных ниже четырех значений:
-//
-//      Основной номер версии
-//      Дополнительный номер версии
-//      Номер сборки
-//      Редакция
-//
-// Можно задать все значения или принять номера сборки и редакции по умолчанию 
-// используя "*", как показано ниже:
+// The assembly version consists of major, minor, build, and revision numbers.
+// An asterisk can generate build and revision numbers automatically:
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("1.0.1.3")]
 [assembly: AssemblyFileVersion("1.0.1.3")]
