@@ -41,6 +41,19 @@ internal static class Program
             return 1;
         }
 
+        if (options.Operation is LoadOperation.UdpReliable or LoadOperation.UdpUnreliable)
+        {
+            var readyUntil = DateTime.UtcNow + options.ConnectTimeout;
+            while (clients.Any(client => !client.IsUdpReady) && DateTime.UtcNow < readyUntil)
+                await Task.Delay(25).ConfigureAwait(false);
+            if (clients.Any(client => !client.IsUdpReady))
+            {
+                foreach (var client in clients) client.Dispose();
+                Console.Error.WriteLine("UDP handshake did not complete for every client.");
+                return 1;
+            }
+        }
+
         if (options.Warmup > TimeSpan.Zero)
         {
             Console.WriteLine("Warmup...");
@@ -58,7 +71,7 @@ internal static class Program
         }
 
         PrintResult(metrics, stopwatch.Elapsed);
-        return metrics.Success == 0 ? 2 : 0;
+        return metrics.Success == 0 || metrics.Errors != 0 || metrics.Timeouts != 0 ? 2 : 0;
     }
 
     private static async Task<bool> ConnectAllAsync(IReadOnlyCollection<LoadClient> clients, TimeSpan timeout)
@@ -150,6 +163,8 @@ internal static class Program
                 options.Timeout,
                 cancellationToken),
             LoadOperation.Mix => SendMixedOperationAsync(client, options, clientIndex, sequence, cancellationToken),
+            LoadOperation.UdpReliable => client.SendUdpProbeAsync(sequence, CreatePayload(options.PayloadSize, clientIndex, sequence), UdpDeliveryMode.Reliable, options.Timeout, cancellationToken),
+            LoadOperation.UdpUnreliable => client.SendUdpProbeAsync(sequence, CreatePayload(options.PayloadSize, clientIndex, sequence), UdpDeliveryMode.Unreliable, options.Timeout, cancellationToken),
             _ => throw new InvalidOperationException("Unknown operation: " + options.Operation)
         };
     }
@@ -242,12 +257,17 @@ internal sealed class LoadClient :
     private readonly ClientPeer _clientPeer;
     private readonly DataServerNetworkBus _networkBus;
     private readonly TaskCompletionSource<bool> _connected = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private TaskCompletionSource<OperationData> _udpResponse;
+    private int _udpSequence;
+
+    public bool IsUdpReady => _clientPeer.IsUdpReady;
 
     public LoadClient(string host, int port)
     {
         _clientPeer = new ClientPeer(host, port, this);
         _clientPeer.SetOperationsReceiver(this);
         _clientPeer.ClientConnectionStatusChanged += OnConnectionStatusChanged;
+        _clientPeer.ClientConnected += OnConnected;
 
         _networkBus = new DataServerNetworkBus();
         _networkBus.Init(this);
@@ -259,6 +279,31 @@ internal sealed class LoadClient :
 
         var completedTask = await Task.WhenAny(_connected.Task, Task.Delay(Timeout.Infinite, cancellationToken)).ConfigureAwait(false);
         return completedTask == _connected.Task && _connected.Task.Result;
+    }
+
+    public async Task SendUdpProbeAsync(int sequence, string payload, UdpDeliveryMode mode,
+        TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        if (!_clientPeer.IsUdpReady)
+            throw new InvalidOperationException("UDP session is not ready.");
+
+        var response = new TaskCompletionSource<OperationData>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Volatile.Write(ref _udpSequence, sequence);
+        _udpResponse = response;
+        var operation = new OperationData(TestOperationCodes.UdpProbe, new Dictionary<byte, object>
+        {
+            [UdpProbeFields.Sequence] = sequence,
+            [UdpProbeFields.Payload] = payload,
+            [UdpProbeFields.Reliable] = mode == UdpDeliveryMode.Reliable
+        });
+
+        if (!await _clientPeer.SendUdpAsync(operation, mode).ConfigureAwait(false))
+            throw new IOException("UDP send failed or was not acknowledged.");
+
+        var echoed = await response.Task.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
+        if (!echoed.Parameters.TryGetValue(UdpProbeFields.Payload, out var value) ||
+            value is not string text || text != payload)
+            throw new InvalidDataException("UDP response payload does not match.");
     }
 
     public Task<TResponse> SendAsync<TResponse>(
@@ -281,6 +326,12 @@ internal sealed class LoadClient :
         {
             _networkBus.IncomingResponse(operation.Parameters);
         }
+        else if (operation.OperationCode == TestOperationCodes.UdpProbeResponse &&
+                 operation.Parameters.TryGetValue(UdpProbeFields.Sequence, out var sequence) &&
+                 Convert.ToInt32(sequence) == Volatile.Read(ref _udpSequence))
+        {
+            _udpResponse?.TrySetResult(operation);
+        }
     }
 
     public void Log(string message)
@@ -298,6 +349,7 @@ internal sealed class LoadClient :
     public void Dispose()
     {
         _clientPeer.ClientConnectionStatusChanged -= OnConnectionStatusChanged;
+        _clientPeer.ClientConnected -= OnConnected;
         _clientPeer.Discard();
     }
 
@@ -308,6 +360,8 @@ internal sealed class LoadClient :
             _connected.TrySetResult(true);
         }
     }
+
+    private void OnConnected() => _clientPeer.EnableUdp();
 }
 
 internal sealed class LoadMetrics
@@ -350,7 +404,9 @@ internal enum LoadOperation
     Ping,
     Echo,
     Sum,
-    Mix
+    Mix,
+    UdpReliable,
+    UdpUnreliable
 }
 
 internal sealed class LoadOptions
@@ -407,7 +463,7 @@ internal sealed class LoadOptions
                     options.ConnectTimeout = TimeSpan.FromSeconds(double.Parse(NextValue()));
                     break;
                 case "--operation":
-                    options.Operation = Enum.Parse<LoadOperation>(NextValue(), ignoreCase: true);
+                    options.Operation = Enum.Parse<LoadOperation>(NextValue().Replace("-", ""), ignoreCase: true);
                     break;
                 case "--payload-size":
                     options.PayloadSize = int.Parse(NextValue());
@@ -436,6 +492,10 @@ internal sealed class LoadOptions
             throw new ArgumentException("--payload-size cannot be negative.");
         }
 
+        if (options.PayloadSize > 900 &&
+            (options.Operation == LoadOperation.UdpReliable || options.Operation == LoadOperation.UdpUnreliable))
+            throw new ArgumentException("--payload-size must be at most 900 for UDP.");
+
         return options;
     }
 
@@ -445,7 +505,7 @@ internal sealed class LoadOptions
         Console.WriteLine("  MeridianLoadTestClient --host 192.168.0.20 --port 4555 --clients 64 --duration-sec 30 --operation mix");
         Console.WriteLine();
         Console.WriteLine("Options:");
-        Console.WriteLine("  --operation ping|echo|sum|mix");
+        Console.WriteLine("  --operation ping|echo|sum|mix|udp-reliable|udp-unreliable");
         Console.WriteLine("  --payload-size <bytes>     Used by echo/mix.");
         Console.WriteLine("  --timeout-ms <ms>");
         Environment.Exit(0);

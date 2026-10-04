@@ -9,6 +9,8 @@ using MeridianRequestSystem.RequestSystem.Server;
 using MeridianServerLib.Interfaces.Server;
 using MeridianServerLib.Models.Operations;
 using MeridianServerLib.Models.Server;
+using MeridianTestContracts;
+using System.Collections.Generic;
 
 namespace MeridianTestLogic
 {
@@ -27,6 +29,7 @@ namespace MeridianTestLogic
         public TestServerPeer(IServerPeerSession serverPeerSession)
             : base(serverPeerSession)
         {
+            AllowUdpOperation(TestOperationCodes.UdpProbe);
             var requestCreator = new MeridianServerRequestCreator(Assembly.GetExecutingAssembly());
             var requestSystem = new MeridianRequestSystem.RequestSystem.Server.MeridianRequestSystem(
                 requestCreator,
@@ -55,12 +58,37 @@ namespace MeridianTestLogic
             OperationData messageData,
             CancellationToken cancellationToken)
         {
+            if (messageData.OperationCode == TestOperationCodes.UdpProbe)
+            {
+                return HandleUdpProbeAsync(messageData);
+            }
+
             if (TraceMessages)
             {
                 Console.WriteLine("[MeridianTestLogic] Received operation: " + messageData.OperationCode);
             }
 
             return _requestAdapter.OnReceivedMessageAsync(sender, messageData, cancellationToken);
+        }
+
+        private async Task HandleUdpProbeAsync(OperationData operation)
+        {
+            var fields = operation.Parameters;
+            if (fields == null || !fields.TryGetValue(UdpProbeFields.Sequence, out var sequence) ||
+                !fields.TryGetValue(UdpProbeFields.Reliable, out var reliableValue) ||
+                !(reliableValue is bool reliable))
+            {
+                return;
+            }
+
+            var response = new OperationData(TestOperationCodes.UdpProbeResponse,
+                new Dictionary<byte, object>
+                {
+                    [UdpProbeFields.Sequence] = sequence,
+                    [UdpProbeFields.Payload] = fields.TryGetValue(UdpProbeFields.Payload, out var payload) ? payload : string.Empty
+                });
+            await SendUdpAsync(response, reliable ? UdpDeliveryMode.Reliable : UdpDeliveryMode.Unreliable)
+                .ConfigureAwait(false);
         }
 
         private sealed class PeerNetworkSender : INetworkSender

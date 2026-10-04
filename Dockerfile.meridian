@@ -23,5 +23,5 @@ COPY --from=build /out/testlogic/MeridianRequestSystem.dll /app/MeridianTest/
 
 COPY MeridianServer/docker/server_setting.json /app/server_setting.json
 
-EXPOSE 4555
+EXPOSE 4555/tcp 4555/udp
 ENTRYPOINT ["dotnet", "MeridianServer.dll"]

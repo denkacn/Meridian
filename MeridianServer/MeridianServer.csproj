@@ -1,38 +1,22 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+    <Import Project="..\Meridian.Version.props" />
+
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <TargetFrameworks>net8.0;net8.0-windows7.0</TargetFrameworks>
         <UseWindowsForms>false</UseWindowsForms>
-        <AssemblyVersion>1.0.1.77</AssemblyVersion>
-        <FileVersion>1.0.1.77</FileVersion>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
       <ShouldCreateLogs>True</ShouldCreateLogs>
       <AdvancedSettingsExpanded>False</AdvancedSettingsExpanded>
-      <UpdateAssemblyVersion>True</UpdateAssemblyVersion>
-      <UpdateAssemblyFileVersion>True</UpdateAssemblyFileVersion>
-      <UpdateAssemblyInfoVersion>False</UpdateAssemblyInfoVersion>
-      <AssemblyVersionSettings>None.None.IncrementOnDemandWithResetOnIncrease.IncrementWithResetOnIncrease</AssemblyVersionSettings>
-      <UpdatePackageVersion>False</UpdatePackageVersion>
-      <AssemblyInfoVersionType>SettingsVersion</AssemblyInfoVersionType>
-      <InheritWinAppVersionFrom>None</InheritWinAppVersionFrom>
-      <AssemblyFileVersionSettings>None.None.IncrementOnDemandWithResetOnIncrease.IncrementWithResetOnIncrease</AssemblyFileVersionSettings>
 	  <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
       <ShouldCreateLogs>True</ShouldCreateLogs>
       <AdvancedSettingsExpanded>False</AdvancedSettingsExpanded>
-      <UpdateAssemblyVersion>True</UpdateAssemblyVersion>
-      <UpdateAssemblyFileVersion>True</UpdateAssemblyFileVersion>
-      <UpdateAssemblyInfoVersion>False</UpdateAssemblyInfoVersion>
-      <AssemblyVersionSettings>None.None.IncrementOnDemandWithResetOnIncrease.IncrementWithResetOnIncrease</AssemblyVersionSettings>
-      <UpdatePackageVersion>False</UpdatePackageVersion>
-      <AssemblyInfoVersionType>SettingsVersion</AssemblyInfoVersionType>
-      <InheritWinAppVersionFrom>None</InheritWinAppVersionFrom>
-      <AssemblyFileVersionSettings>None.None.IncrementOnDemandWithResetOnIncrease.IncrementWithResetOnIncrease</AssemblyFileVersionSettings>
 	  <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     </PropertyGroup>
 

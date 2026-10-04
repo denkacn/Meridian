@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Channels;
@@ -11,11 +12,12 @@ using MeridianServerLib.Exceptions;
 using MeridianServerLib.Interfaces.Server;
 using MeridianServerLib.LogsLayer.Interfaces;
 using MeridianServerLib.Models.Operations;
+using MeridianServer.TransportLayer.NetCoreServerDomain;
 using NetCoreServer;
 
 namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
 {
-    public class ServerPeerSession : TcpSession, IServerPeerSession
+    public class ServerPeerSession : TcpSession, IServerPeerSession, IUdpServerPeerSession
     {
         public event EventHandler ConnectedEventHandler;
         public event EventHandler DisconnectedEventHandler;
@@ -37,18 +39,33 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         private readonly ISocketMessageComponator _socketMessageComponator;
         private bool _isSocketMessageComponatorDisposed;
         private readonly CancellationTokenSource _disposeCancellationTokenSource;
-        private readonly Channel<OperationData> _incomingOperations;
+        private readonly Channel<IncomingOperation> _incomingOperations;
         private readonly Task _incomingProcessingTask;
+        private int _pendingUdpOperations;
+        private readonly UdpServerGateway _udpGateway;
+        private readonly object _udpLock = new object();
+        private readonly HashSet<byte> _allowedUdpOperations = new HashSet<byte>();
+        private UdpSession _udpSession;
+        private IPEndPoint _udpEndpoint;
+        private string _udpToken;
 
-        public ServerPeerSession(string id, TcpServer server, ILogger logger) : base(server)
+        public bool IsUdpReady => _udpSession?.IsReady == true && _udpEndpoint != null;
+
+        public ServerPeerSession(string id, TcpServer server, ILogger logger)
+            : this(id, server, (server as ServerBase)?.UdpGateway, logger)
+        {
+        }
+
+        internal ServerPeerSession(string id, TcpServer server, UdpServerGateway udpGateway, ILogger logger) : base(server)
         {
             SetLogger(logger);
 
             _id = id;
+			_udpGateway = udpGateway;
 			_operations = new Queue<OperationData>();
             _encoder = new MessagePackEncoder<OperationData>();
             _disposeCancellationTokenSource = new CancellationTokenSource();
-            _incomingOperations = Channel.CreateUnbounded<OperationData>(new UnboundedChannelOptions
+            _incomingOperations = Channel.CreateUnbounded<IncomingOperation>(new UnboundedChannelOptions
             {
                 SingleReader = true,
                 SingleWriter = false,
@@ -67,6 +84,79 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             {
                 DecodeAndSend(nextOperationData, messageId);
             }
+        }
+
+        public void AllowUdpOperation(byte operationCode)
+        {
+            if (operationCode == 255) throw new ArgumentOutOfRangeException(nameof(operationCode));
+            lock (_udpLock) _allowedUdpOperations.Add(operationCode);
+        }
+
+        public Task<bool> SendUdpAsync(OperationData operation, UdpDeliveryMode mode)
+        {
+            if (operation.OperationCode == 255) return Task.FromResult(false);
+            var session = _udpSession;
+            if (session == null || !IsUdpReady)
+            {
+                Send(operation);
+                return Task.FromResult(true);
+            }
+            return session.SendAsync(operation, mode);
+        }
+
+        internal void ReceiveUdp(IPEndPoint endpoint, UdpPacket packet)
+        {
+            UdpSession session;
+            lock (_udpLock)
+            {
+                session = _udpSession;
+                if (session == null) return;
+                if (packet.Kind == UdpPacket.Hello)
+                    _udpEndpoint = endpoint;
+                else if (_udpEndpoint == null || !_udpEndpoint.Equals(endpoint))
+                    return;
+            }
+            session.Receive(packet);
+        }
+
+        private bool TryEnqueueUdpOperation(OperationData operation)
+        {
+            lock (_udpLock)
+                if (!_allowedUdpOperations.Contains(operation.OperationCode)) return false;
+            if (Interlocked.Increment(ref _pendingUdpOperations) > 128)
+            {
+                Interlocked.Decrement(ref _pendingUdpOperations);
+                return false;
+            }
+            if (_incomingOperations.Writer.TryWrite(new IncomingOperation(operation, true))) return true;
+            Interlocked.Decrement(ref _pendingUdpOperations);
+            return false;
+        }
+
+        private bool TryHandleUdpEnable(OperationData operation)
+        {
+            if (operation.OperationCode != 255 || operation.Parameters == null ||
+                !operation.Parameters.TryGetValue(0, out var marker) ||
+                marker as string != "MERIDIAN_UDP_ENABLE_V1") return false;
+
+            if (_udpGateway == null || !_udpGateway.IsStarted) return true;
+            lock (_udpLock)
+            {
+                if (_udpSession == null)
+                {
+                    var token = _udpGateway.Register(this);
+                    _udpToken = Convert.ToBase64String(token);
+                    _udpSession = new UdpSession(token, bytes => _udpGateway.SendTo(_udpEndpoint, bytes),
+                        TryEnqueueUdpOperation);
+                }
+                Send(new OperationData(255, new Dictionary<byte, object>
+                {
+                    [0] = "MERIDIAN_UDP_OFFER_V1",
+                    [1] = _udpToken,
+                    [2] = _udpGateway.Port
+                }));
+            }
+            return true;
         }
 
         public void Update()
@@ -127,7 +217,8 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             try
             {
                 var operationData = _encoder.Deserialize(message, _logger);
-                if (!_incomingOperations.Writer.TryWrite(operationData))
+                if (TryHandleUdpEnable(operationData)) return;
+                if (!_incomingOperations.Writer.TryWrite(new IncomingOperation(operationData, false)))
                 {
                     _logger?.Log($"[ServerPeerSession] ({_id}) Incoming operation queue is closed");
                 }
@@ -166,6 +257,14 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
 
         private void DisposeSocketMessageComponator()
         {
+            lock (_udpLock)
+            {
+                _udpGateway?.Unregister(_udpToken);
+                _udpSession?.Dispose();
+                _udpSession = null;
+                _udpEndpoint = null;
+                _udpToken = null;
+            }
             lock (_sendLock)
             {
                 if (_isSocketMessageComponatorDisposed)
@@ -274,9 +373,10 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         {
             try
             {
-                await foreach (var operationData in _incomingOperations.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+                await foreach (var incoming in _incomingOperations.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
                 {
-                    await ProcessIncomingOperationAsync(operationData, cancellationToken).ConfigureAwait(false);
+                    if (incoming.IsUdp) Interlocked.Decrement(ref _pendingUdpOperations);
+                    await ProcessIncomingOperationAsync(incoming.Operation, cancellationToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -324,6 +424,18 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
                 {
                     _logger?.LogError($"[ServerPeerSession] ({_id}) Error On Async Received", ex);
                 }
+            }
+        }
+
+        private readonly struct IncomingOperation
+        {
+            public OperationData Operation { get; }
+            public bool IsUdp { get; }
+
+            public IncomingOperation(OperationData operation, bool isUdp)
+            {
+                Operation = operation;
+                IsUdp = isUdp;
             }
         }
     }

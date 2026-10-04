@@ -26,7 +26,7 @@ internal static class Program
         }
 
         Console.WriteLine("Connected to Meridian test layer.");
-        Console.WriteLine("Commands: ping | echo <text> | sum <a> <b> | exit");
+        Console.WriteLine("Commands: ping | echo <text> | sum <a> <b> | udp [reliable|unreliable] [text] | exit");
 
         while (true)
         {
@@ -53,6 +53,25 @@ internal static class Program
 
     private static async Task RunCommandAsync(MeridianTestClient client, string command)
     {
+        if (command.Equals("udp", StringComparison.OrdinalIgnoreCase) ||
+            command.StartsWith("udp ", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = command.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+            var mode = parts.Length > 1 && parts[1].Equals("unreliable", StringComparison.OrdinalIgnoreCase)
+                ? UdpDeliveryMode.Unreliable : UdpDeliveryMode.Reliable;
+            if (parts.Length > 1 && !parts[1].Equals("reliable", StringComparison.OrdinalIgnoreCase) &&
+                !parts[1].Equals("unreliable", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("Usage: udp [reliable|unreliable] [text]");
+                return;
+            }
+
+            var payload = parts.Length > 2 ? parts[2] : "hello udp";
+            var echoed = await client.SendUdpProbeAsync(payload, mode).ConfigureAwait(false);
+            Console.WriteLine($"udp {mode}: {echoed}");
+            return;
+        }
+
         if (command.Equals("ping", StringComparison.OrdinalIgnoreCase))
         {
             var response = await client.SendAsync<PingResponse>(new PingRequest()).ConfigureAwait(false);
@@ -96,12 +115,15 @@ internal sealed class MeridianTestClient :
     private readonly ClientPeer _clientPeer;
     private readonly DataServerNetworkBus _networkBus;
     private readonly TaskCompletionSource<bool> _connected = new();
+    private TaskCompletionSource<OperationData> _udpResponse;
+    private int _udpSequence;
 
     public MeridianTestClient(string host, int port)
     {
         _clientPeer = new ClientPeer(host, port, this);
         _clientPeer.SetOperationsReceiver(this);
         _clientPeer.ClientConnectionStatusChanged += OnConnectionStatusChanged;
+        _clientPeer.ClientConnected += OnConnected;
 
         _networkBus = new DataServerNetworkBus();
         _networkBus.Init(this, this);
@@ -122,6 +144,37 @@ internal sealed class MeridianTestClient :
         return _networkBus.SendRequestAsync<TResponse>(request, TimeSpan.FromSeconds(10));
     }
 
+    public async Task<string> SendUdpProbeAsync(string payload, UdpDeliveryMode mode)
+    {
+        var readyUntil = DateTime.UtcNow.AddSeconds(5);
+        while (!_clientPeer.IsUdpReady && DateTime.UtcNow < readyUntil)
+        {
+            await Task.Delay(25).ConfigureAwait(false);
+        }
+
+        if (!_clientPeer.IsUdpReady) throw new TimeoutException("UDP handshake did not complete.");
+
+        var sequence = Interlocked.Increment(ref _udpSequence);
+        var response = new TaskCompletionSource<OperationData>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _udpResponse = response;
+        var operation = new OperationData(TestOperationCodes.UdpProbe, new Dictionary<byte, object>
+        {
+            [UdpProbeFields.Sequence] = sequence,
+            [UdpProbeFields.Payload] = payload,
+            [UdpProbeFields.Reliable] = mode == UdpDeliveryMode.Reliable
+        });
+
+        if (!await _clientPeer.SendUdpAsync(operation, mode).ConfigureAwait(false))
+            throw new IOException("UDP send was not acknowledged or failed.");
+
+        var echoed = await response.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        if (!echoed.Parameters.TryGetValue(UdpProbeFields.Payload, out var echoedPayload) ||
+            echoedPayload is not string text || text != payload)
+            throw new InvalidDataException("UDP response payload does not match.");
+
+        return text;
+    }
+
     public void Send(byte code, Dictionary<byte, object> package, bool isNecessarily)
     {
         _clientPeer.Send(new OperationData(code, package));
@@ -132,6 +185,12 @@ internal sealed class MeridianTestClient :
         if (operation.OperationCode == TestOperationCodes.RequestSystem)
         {
             _networkBus.IncomingResponse(operation.Parameters);
+        }
+        else if (operation.OperationCode == TestOperationCodes.UdpProbeResponse &&
+                 operation.Parameters.TryGetValue(UdpProbeFields.Sequence, out var sequence) &&
+                 Convert.ToInt32(sequence) == Volatile.Read(ref _udpSequence))
+        {
+            _udpResponse?.TrySetResult(operation);
         }
     }
 
@@ -153,6 +212,7 @@ internal sealed class MeridianTestClient :
     public void Dispose()
     {
         _clientPeer.ClientConnectionStatusChanged -= OnConnectionStatusChanged;
+        _clientPeer.ClientConnected -= OnConnected;
         _clientPeer.Discard();
     }
 
@@ -163,4 +223,6 @@ internal sealed class MeridianTestClient :
             _connected.TrySetResult(true);
         }
     }
+
+    private void OnConnected() => _clientPeer.EnableUdp();
 }

@@ -6,10 +6,13 @@ using MeridianServerLib.Exceptions;
 using MeridianServerLib.Interfaces.Client;
 using MeridianServerLib.LogsLayer.Interfaces;
 using MeridianServerLib.Models.Operations;
+using System.Collections.Generic;
+using System.Net;
+using System.Threading.Tasks;
 
 namespace MeridianServerLib.Models.Client
 {
-    public sealed class ClientPeer : IClientPeer
+    public sealed class ClientPeer : IClientPeer, IUdpClientPeer
     {
         public event Action ClientConnected;
         public event Action ClientDisconnected;
@@ -27,6 +30,11 @@ namespace MeridianServerLib.Models.Client
         private readonly ISocketMessageComponator _socketMessageComponator;
         private int _messageId = 0;
         private bool _isDiscarded;
+        private MeridianUdpClient _udpClient;
+        private UdpSession _udpSession;
+        private readonly object _udpLock = new object();
+
+        public bool IsUdpReady => _udpSession?.IsReady == true;
 
         public ClientPeer(string address, int port, ILogger logger = null)
         {
@@ -66,7 +74,25 @@ namespace MeridianServerLib.Models.Client
                 return false;
             }
 
+            DisposeUdp();
             return _networkClient.DisconnectAsync();
+        }
+
+        public bool EnableUdp()
+        {
+            if (!IsConnected || _isDiscarded) return false;
+            return Send(new OperationData(255, new Dictionary<byte, object>
+            {
+                [0] = "MERIDIAN_UDP_ENABLE_V1"
+            }));
+        }
+
+        public Task<bool> SendUdpAsync(OperationData operation, UdpDeliveryMode mode)
+        {
+            if (!IsConnected || _isDiscarded || operation.OperationCode == 255) return Task.FromResult(false);
+            var session = _udpSession;
+            if (session == null || !session.IsReady) return Task.FromResult(Send(operation));
+            return session.SendAsync(operation, mode);
         }
 
         public bool Send(OperationData operation)
@@ -110,6 +136,8 @@ namespace MeridianServerLib.Models.Client
         {
             if (_isDiscarded) return;
 
+            DisposeUdp();
+
             _networkClient.NetworkClientConnected -= OnNetworkClientConnected;
             _networkClient.NetworkClientDisconnected -= OnNetworkClientDisconnected;
             _networkClient.NetworkClientError -= OnNetworkClientError;
@@ -138,6 +166,7 @@ namespace MeridianServerLib.Models.Client
             try
             {
 	            var operationData = _encoder.Deserialize(message, _logger);
+	            if (TryHandleUdpOffer(operationData)) return;
 	            _receiver?.OnOperationReceived(operationData);
             }
             catch (MeridianEncoderException ex)
@@ -154,7 +183,75 @@ namespace MeridianServerLib.Models.Client
 
         private void OnNetworkClientConnected() => ClientConnected?.Invoke();
 
-        private void OnNetworkClientDisconnected() => ClientDisconnected?.Invoke();
+        private void OnNetworkClientDisconnected()
+        {
+            DisposeUdp();
+            ClientDisconnected?.Invoke();
+        }
+
+        private bool TryHandleUdpOffer(OperationData operation)
+        {
+            if (operation.OperationCode != 255 || operation.Parameters == null ||
+                !operation.Parameters.TryGetValue(0, out var marker) ||
+                marker as string != "MERIDIAN_UDP_OFFER_V1") return false;
+
+            if (!operation.Parameters.TryGetValue(1, out var tokenValue) ||
+                !(tokenValue is string tokenString) ||
+                !operation.Parameters.TryGetValue(2, out var portValue)) return true;
+
+            try
+            {
+                var token = Convert.FromBase64String(tokenString);
+                var port = Convert.ToInt32(portValue);
+                var addresses = Dns.GetHostAddresses(_networkClient.Address);
+                IPAddress ip = null;
+                foreach (var candidate in addresses)
+                    if (candidate.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) { ip = candidate; break; }
+                if (ip == null || token.Length != 16) return true;
+
+                lock (_udpLock)
+                {
+                    DisposeUdpLocked();
+                    var udpClient = new MeridianUdpClient(new IPEndPoint(ip, port), OnUdpReceived);
+                    _udpClient = udpClient;
+                    _udpSession = new UdpSession(token, packet => udpClient.Send(packet) == packet.Length,
+                        received => { _receiver?.OnOperationReceived(received); return true; });
+                    if (_udpClient.Connect())
+                    {
+                        _udpClient.ReceiveAsync();
+                        _udpSession.StartHandshake();
+                    }
+                    else DisposeUdpLocked();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError("[ClientPeer] UDP setup failed", ex);
+                DisposeUdp();
+            }
+            return true;
+        }
+
+        private void OnUdpReceived(byte[] buffer, int offset, int size)
+        {
+            if (!UdpPacket.TryParse(buffer, offset, size, out var packet)) return;
+            try { _udpSession?.Receive(packet); }
+            catch (Exception ex) { _logger?.LogError("[ClientPeer] UDP receive failed", ex); }
+        }
+
+        private void DisposeUdp()
+        {
+            lock (_udpLock) DisposeUdpLocked();
+        }
+
+        private void DisposeUdpLocked()
+        {
+            _udpSession?.Dispose();
+            _udpSession = null;
+            _udpClient?.Disconnect();
+            _udpClient?.Dispose();
+            _udpClient = null;
+        }
 
         private void OnNetworkClientError(System.Net.Sockets.SocketError error) => ClientError?.Invoke(error);
     }

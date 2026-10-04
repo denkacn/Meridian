@@ -25,6 +25,21 @@ namespace MeridianServerLib.Models.Server
             ServerPeerSession.Send(operationData);
         }
 
+        public bool IsUdpReady => ServerPeerSession is IUdpServerPeerSession udp && udp.IsUdpReady;
+
+        public void AllowUdpOperation(byte operationCode)
+        {
+            if (ServerPeerSession is IUdpServerPeerSession udp) udp.AllowUdpOperation(operationCode);
+        }
+
+        public Task<bool> SendUdpAsync(OperationData operationData, UdpDeliveryMode mode)
+        {
+            if (ServerPeerSession is IUdpServerPeerSession udp)
+                return udp.SendUdpAsync(operationData, mode);
+            ServerPeerSession.Send(operationData);
+            return Task.FromResult(true);
+        }
+
         public void Update()
         {
             ServerPeerSession.Update();
