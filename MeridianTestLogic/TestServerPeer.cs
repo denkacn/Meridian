@@ -87,7 +87,7 @@ namespace MeridianTestLogic
                     [UdpProbeFields.Sequence] = sequence,
                     [UdpProbeFields.Payload] = fields.TryGetValue(UdpProbeFields.Payload, out var payload) ? payload : string.Empty
                 });
-            await SendUdpAsync(response, reliable ? UdpDeliveryMode.Reliable : UdpDeliveryMode.Unreliable)
+            await SendUdpOnlyAsync(response, reliable ? UdpDeliveryMode.Reliable : UdpDeliveryMode.Unreliable)
                 .ConfigureAwait(false);
         }
 

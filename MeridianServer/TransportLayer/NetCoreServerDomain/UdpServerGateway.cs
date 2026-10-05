@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Threading;
 using MeridianServer.TransportLayer.NetCoreServerDomain.Sessions;
@@ -12,8 +13,8 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain
 {
     internal sealed class UdpServerGateway : UdpServer
     {
-        private readonly ConcurrentDictionary<string, ServerPeerSession> _sessions =
-            new ConcurrentDictionary<string, ServerPeerSession>();
+        private readonly ConcurrentDictionary<Guid, ServerPeerSession> _sessions =
+            new ConcurrentDictionary<Guid, ServerPeerSession>();
         private readonly ILogger _logger;
 
         public UdpServerGateway(IPAddress address, int port, ILogger logger) : base(address, port)
@@ -29,19 +30,22 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain
                 {
                     var token = new byte[16];
                     random.GetBytes(token);
-                    if (_sessions.TryAdd(Convert.ToBase64String(token), session)) return token;
+                    if (_sessions.TryAdd(new Guid(token), session)) return token;
                 }
             }
         }
 
-        public void Unregister(string token)
+        public void Unregister(byte[] token)
         {
-            if (token != null) _sessions.TryRemove(token, out _);
+            if (token != null) _sessions.TryRemove(new Guid(token), out _);
         }
 
-        public bool SendTo(IPEndPoint endpoint, byte[] bytes)
+        public bool SendTo(IPEndPoint endpoint, byte[] bytes, int length)
         {
-            return endpoint != null && IsStarted && Send(endpoint, bytes) == bytes.Length;
+            if (endpoint == null || !IsStarted) return false;
+            try { return Socket.SendTo(bytes, 0, length, SocketFlags.None, endpoint) == length; }
+            catch (ObjectDisposedException) { return false; }
+            catch (SocketException) { return false; }
         }
 
         protected override void OnStarted()
@@ -54,8 +58,8 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain
             try
             {
                 if (endpoint is IPEndPoint remote &&
-                    UdpPacket.TryParse(buffer, (int)offset, (int)size, out var packet) &&
-                    _sessions.TryGetValue(packet.Token, out var session))
+                    UdpPacket.TryParse(buffer.AsMemory((int)offset, (int)size), out var packet) &&
+                    _sessions.TryGetValue(new Guid(packet.Token), out var session))
                     session.ReceiveUdp(remote, packet);
             }
             catch (Exception ex)

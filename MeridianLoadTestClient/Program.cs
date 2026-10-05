@@ -297,7 +297,7 @@ internal sealed class LoadClient :
             [UdpProbeFields.Reliable] = mode == UdpDeliveryMode.Reliable
         });
 
-        if (!await _clientPeer.SendUdpAsync(operation, mode).ConfigureAwait(false))
+        if (!await _clientPeer.SendUdpOnlyAsync(operation, mode).ConfigureAwait(false))
             throw new IOException("UDP send failed or was not acknowledged.");
 
         var echoed = await response.Task.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);

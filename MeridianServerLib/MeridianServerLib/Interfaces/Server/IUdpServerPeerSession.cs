@@ -8,5 +8,6 @@ namespace MeridianServerLib.Interfaces.Server
         bool IsUdpReady { get; }
         void AllowUdpOperation(byte operationCode);
         Task<bool> SendUdpAsync(OperationData operation, UdpDeliveryMode mode);
+        Task<bool> SendUdpOnlyAsync(OperationData operation, UdpDeliveryMode mode);
     }
 }

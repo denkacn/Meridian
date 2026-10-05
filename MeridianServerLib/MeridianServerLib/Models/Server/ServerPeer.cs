@@ -40,6 +40,13 @@ namespace MeridianServerLib.Models.Server
             return Task.FromResult(true);
         }
 
+        public Task<bool> SendUdpOnlyAsync(OperationData operationData, UdpDeliveryMode mode)
+        {
+            if (ServerPeerSession is IUdpServerPeerSession udp)
+                return udp.SendUdpOnlyAsync(operationData, mode);
+            return Task.FromResult(false);
+        }
+
         public void Update()
         {
             ServerPeerSession.Update();

@@ -95,6 +95,13 @@ namespace MeridianServerLib.Models.Client
             return session.SendAsync(operation, mode);
         }
 
+        public Task<bool> SendUdpOnlyAsync(OperationData operation, UdpDeliveryMode mode)
+        {
+            if (!IsConnected || _isDiscarded || operation.OperationCode == 255) return Task.FromResult(false);
+            var session = _udpSession;
+            return session == null ? Task.FromResult(false) : session.SendAsync(operation, mode);
+        }
+
         public bool Send(OperationData operation)
         {
             if (_isDiscarded)
@@ -214,7 +221,7 @@ namespace MeridianServerLib.Models.Client
                     DisposeUdpLocked();
                     var udpClient = new MeridianUdpClient(new IPEndPoint(ip, port), OnUdpReceived);
                     _udpClient = udpClient;
-                    _udpSession = new UdpSession(token, packet => udpClient.Send(packet) == packet.Length,
+                    _udpSession = new UdpSession(token, (packet, length) => udpClient.SendPacket(packet, length),
                         received => { _receiver?.OnOperationReceived(received); return true; });
                     if (_udpClient.Connect())
                     {
@@ -234,7 +241,7 @@ namespace MeridianServerLib.Models.Client
 
         private void OnUdpReceived(byte[] buffer, int offset, int size)
         {
-            if (!UdpPacket.TryParse(buffer, offset, size, out var packet)) return;
+            if (!UdpPacket.TryParse(buffer.AsMemory(offset, size), out var packet)) return;
             try { _udpSession?.Receive(packet); }
             catch (Exception ex) { _logger?.LogError("[ClientPeer] UDP receive failed", ex); }
         }

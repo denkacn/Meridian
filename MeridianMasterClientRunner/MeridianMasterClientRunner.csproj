@@ -17,12 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MeridianMasterClientRunnerCommon\MeridianMasterClientRunnerCommon.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="MeridianServerLib">
-      <HintPath>..\MeridianServerLib\MeridianServerLib\bin\Debug\netstandard2.1\MeridianServerLib.dll</HintPath>
-    </Reference>
+    <ProjectReference Include="..\MeridianServerLib\MeridianServerLib\MeridianServerLib.csproj" />
   </ItemGroup>
 
 </Project>

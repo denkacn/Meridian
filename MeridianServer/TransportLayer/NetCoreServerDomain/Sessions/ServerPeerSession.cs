@@ -47,7 +47,7 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
         private readonly HashSet<byte> _allowedUdpOperations = new HashSet<byte>();
         private UdpSession _udpSession;
         private IPEndPoint _udpEndpoint;
-        private string _udpToken;
+        private byte[] _udpToken;
 
         public bool IsUdpReady => _udpSession?.IsReady == true && _udpEndpoint != null;
 
@@ -104,6 +104,13 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
             return session.SendAsync(operation, mode);
         }
 
+        public Task<bool> SendUdpOnlyAsync(OperationData operation, UdpDeliveryMode mode)
+        {
+            if (operation.OperationCode == 255) return Task.FromResult(false);
+            var session = _udpSession;
+            return session == null ? Task.FromResult(false) : session.SendAsync(operation, mode);
+        }
+
         internal void ReceiveUdp(IPEndPoint endpoint, UdpPacket packet)
         {
             UdpSession session;
@@ -145,14 +152,14 @@ namespace MeridianServer.TransportLayer.NetCoreServerDomain.Sessions
                 if (_udpSession == null)
                 {
                     var token = _udpGateway.Register(this);
-                    _udpToken = Convert.ToBase64String(token);
-                    _udpSession = new UdpSession(token, bytes => _udpGateway.SendTo(_udpEndpoint, bytes),
+                    _udpToken = token;
+                    _udpSession = new UdpSession(token, (bytes, length) => _udpGateway.SendTo(_udpEndpoint, bytes, length),
                         TryEnqueueUdpOperation);
                 }
                 Send(new OperationData(255, new Dictionary<byte, object>
                 {
                     [0] = "MERIDIAN_UDP_OFFER_V1",
-                    [1] = _udpToken,
+                    [1] = Convert.ToBase64String(_udpToken),
                     [2] = _udpGateway.Port
                 }));
             }

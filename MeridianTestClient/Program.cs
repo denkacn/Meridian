@@ -28,6 +28,8 @@ internal static class Program
         Console.WriteLine("Connected to Meridian test layer.");
         Console.WriteLine("Commands: ping | echo <text> | sum <a> <b> | udp [reliable|unreliable] [text] | exit");
 
+        var failedCommands = 0;
+
         while (true)
         {
             Console.Write("> ");
@@ -44,11 +46,12 @@ internal static class Program
             }
             catch (Exception ex)
             {
+                failedCommands++;
                 Console.Error.WriteLine("Command failed: " + ex.Message);
             }
         }
 
-        return 0;
+        return failedCommands == 0 ? 0 : 2;
     }
 
     private static async Task RunCommandAsync(MeridianTestClient client, string command)
@@ -164,7 +167,7 @@ internal sealed class MeridianTestClient :
             [UdpProbeFields.Reliable] = mode == UdpDeliveryMode.Reliable
         });
 
-        if (!await _clientPeer.SendUdpAsync(operation, mode).ConfigureAwait(false))
+        if (!await _clientPeer.SendUdpOnlyAsync(operation, mode).ConfigureAwait(false))
             throw new IOException("UDP send was not acknowledged or failed.");
 
         var echoed = await response.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
