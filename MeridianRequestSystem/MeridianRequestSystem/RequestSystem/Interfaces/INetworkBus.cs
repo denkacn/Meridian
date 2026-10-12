@@ -9,6 +9,7 @@ namespace MeridianRequestSystem.RequestSystem.Interfaces
         void Init(INetworkSender sender, ILogger logWriter);
         void SendRequest<TRes>(IDataNetworkRequest request, Action<TRes> responseCallback) where TRes : IDataNetworkResponse;
         void IncomingResponse(Dictionary<byte, object> responseData);
+        void CancelPendingRequests();
         string SubscribeToStaticResponse<TRes>(int responseType, Action<TRes> responseCallback) where TRes : IDataNetworkResponse;
         void UnsubscribeFromStaticResponse(int responseType, string id);
     }

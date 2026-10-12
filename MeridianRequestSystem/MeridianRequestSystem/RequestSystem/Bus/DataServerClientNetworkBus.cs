@@ -5,6 +5,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,15 +18,27 @@ namespace MeridianRequestSystem.RequestSystem.Bus
 
         private INetworkSender _networkSender;
         private ConcurrentDictionary<string, ResponseCallbackData> _responseCallbacksMap;
+        private ConcurrentDictionary<string, IPendingRequest> _pendingRequests;
         private ConcurrentDictionary<int, List<ResponseCallbackData>> _staticResponseCallbacksMap;
         private ILogger _logWriter;
+        private readonly object _lifecycleGate = new object();
+        private bool _acceptingRequests;
 
         public void Init(INetworkSender sender, ILogger logWriter = null)
         {
-            _responseCallbacksMap = new ConcurrentDictionary<string, ResponseCallbackData>();
-            _staticResponseCallbacksMap = new ConcurrentDictionary<int, List<ResponseCallbackData>>();
-            _networkSender = sender;
-            _logWriter = logWriter;
+            ConcurrentDictionary<string, IPendingRequest> previous;
+            lock (_lifecycleGate)
+            {
+                previous = _pendingRequests;
+                _responseCallbacksMap = new ConcurrentDictionary<string, ResponseCallbackData>();
+                _pendingRequests = new ConcurrentDictionary<string, IPendingRequest>();
+                _staticResponseCallbacksMap = new ConcurrentDictionary<int, List<ResponseCallbackData>>();
+                _networkSender = sender;
+                _logWriter = logWriter;
+                _acceptingRequests = true;
+            }
+
+            Drain(previous);
 
             if (_logWriter != null)
             {
@@ -59,52 +72,64 @@ namespace MeridianRequestSystem.RequestSystem.Bus
             CancellationToken cancellationToken = default)
             where TRes : IDataNetworkResponse
         {
-            var completionSource = new TaskCompletionSource<TRes>();
-            CancellationTokenSource timeoutSource = null;
-            CancellationTokenRegistration cancellationRegistration = default;
+            if (cancellationToken.IsCancellationRequested)
+                return Task.FromCanceled<TRes>(cancellationToken);
 
-            void Cleanup(string requestId)
+            PendingRequest<TRes> pending = null;
+            INetworkSender sender;
+            try
             {
-                _responseCallbacksMap.TryRemove(requestId, out _);
-                timeoutSource?.Dispose();
-                cancellationRegistration.Dispose();
-            }
-
-            var uId = CreateUniqId();
-            request.SetRequestId(uId);
-
-            var callbackData = new ResponseCallbackData(response =>
-            {
-                Cleanup(uId);
-                completionSource.TrySetResult((TRes)response);
-            }, uId);
-            callbackData.CreateResponse(typeof(TRes));
-            _responseCallbacksMap[uId] = callbackData;
-
-            timeoutSource = new CancellationTokenSource(timeout ?? DefaultRequestTimeout);
-            timeoutSource.Token.Register(() =>
-            {
-                Cleanup(uId);
-                completionSource.TrySetException(new TimeoutException("Request timeout: " + uId));
-            });
-
-            if (cancellationToken.CanBeCanceled)
-            {
-                cancellationRegistration = cancellationToken.Register(() =>
+                lock (_lifecycleGate)
                 {
-                    Cleanup(uId);
-                    completionSource.TrySetCanceled(cancellationToken);
-                });
+                    var callbacks = _pendingRequests ?? throw new InvalidOperationException("Network bus is not initialized.");
+                    if (!_acceptingRequests)
+                        throw new IOException("Connection closed before the request could be sent.");
+                    sender = _networkSender ?? throw new InvalidOperationException("Network sender is not initialized.");
+                    var id = CreateUniqId();
+                    request.SetRequestId(id);
+                    pending = new PendingRequest<TRes>(id, callbacks, cancellationToken);
+                    callbacks[id] = pending;
+                }
+
+                pending.Initialize(timeout ?? DefaultRequestTimeout);
+                if (pending.IsPending)
+                {
+                    var requestData = RequestMapper.GetRequestData(request);
+                    if (pending.IsPending)
+                        sender.Send(requestData.CommandId, requestData.Request, requestData.IsNecessarily);
+                }
+            }
+            catch (Exception exception)
+            {
+                if (pending == null)
+                    return Task.FromException<TRes>(exception);
+                pending.TryFail(exception);
             }
 
-            var requestData = RequestMapper.GetRequestData(request);
-            _networkSender.Send(requestData.CommandId, requestData.Request, requestData.IsNecessarily);
+            return pending.Task;
+        }
 
-            return completionSource.Task;
+        public void CancelPendingRequests()
+        {
+            ConcurrentDictionary<string, IPendingRequest> pending;
+            lock (_lifecycleGate)
+            {
+                _acceptingRequests = false;
+                pending = _pendingRequests;
+            }
+            Drain(pending);
+        }
+
+        private static void Drain(ConcurrentDictionary<string, IPendingRequest> pending)
+        {
+            if (pending == null) return;
+            foreach (var request in pending.Values)
+                request.TryFail(new IOException("Connection closed before the request completed."));
         }
 
         public void IncomingResponse(Dictionary<byte, object> responseData)
         {
+            if (responseData == null) return;
             if (_logWriter != null)
             {
                 foreach (var pair in responseData)
@@ -113,7 +138,6 @@ namespace MeridianRequestSystem.RequestSystem.Bus
                 }
             }
 
-            if (responseData == null) return;
             if (!responseData.ContainsKey(99)) return;
             if (!responseData.TryGetValue(1, out var requestIdValue)) return;
             if (!responseData.TryGetValue(2, out var responseTypeValue)) return;
@@ -121,7 +145,9 @@ namespace MeridianRequestSystem.RequestSystem.Bus
             var id = requestIdValue as string;
             if (string.IsNullOrEmpty(id)) return;
 
-            if (_responseCallbacksMap.TryRemove(id, out var responseCallback))
+            if (_pendingRequests != null && _pendingRequests.TryGetValue(id, out var pending))
+                pending.TryCompleteResponse(responseData);
+            else if (_responseCallbacksMap.TryRemove(id, out var responseCallback))
             {
                 responseCallback.Response.Map(responseData);
                 responseCallback.RunCallback();
@@ -203,6 +229,114 @@ namespace MeridianRequestSystem.RequestSystem.Bus
             public void RunCallback()
             {
                 if (_callback != null) _callback(Response);
+            }
+        }
+
+        private interface IPendingRequest
+        {
+            void TryCompleteResponse(Dictionary<byte, object> responseData);
+            void TryFail(Exception exception);
+        }
+
+        private sealed class PendingRequest<TRes> : IPendingRequest where TRes : IDataNetworkResponse
+        {
+            private readonly string _id;
+            private readonly ConcurrentDictionary<string, IPendingRequest> _owner;
+            private readonly CancellationToken _cancellationToken;
+            private readonly TaskCompletionSource<TRes> _completion =
+                new TaskCompletionSource<TRes>(TaskCreationOptions.RunContinuationsAsynchronously);
+            private CancellationTokenRegistration _cancellationRegistration;
+            private Timer _timeoutTimer;
+            private int _terminal;
+            private int _initialized;
+            private int _cleanupScheduled;
+
+            public PendingRequest(string id, ConcurrentDictionary<string, IPendingRequest> owner,
+                CancellationToken cancellationToken)
+            {
+                _id = id;
+                _owner = owner;
+                _cancellationToken = cancellationToken;
+            }
+
+            public Task<TRes> Task => _completion.Task;
+            public bool IsPending => Volatile.Read(ref _terminal) == 0;
+
+            public void Initialize(TimeSpan timeout)
+            {
+                try
+                {
+                    if (_cancellationToken.CanBeCanceled)
+                        _cancellationRegistration = _cancellationToken.Register(() => TryCancel());
+
+                    if (IsPending)
+                        _timeoutTimer = new Timer(_ => TryTimeout(), null, timeout, Timeout.InfiniteTimeSpan);
+                }
+                finally
+                {
+                    Volatile.Write(ref _initialized, 1);
+                    ScheduleCleanup();
+                }
+            }
+
+            public void TryCompleteResponse(Dictionary<byte, object> responseData)
+            {
+                if (Interlocked.CompareExchange(ref _terminal, 1, 0) != 0) return;
+
+                try
+                {
+                    var response = (TRes)Activator.CreateInstance(typeof(TRes));
+                    response.Map(responseData);
+                    Finish(() => _completion.TrySetResult(response));
+                }
+                catch (Exception exception)
+                {
+                    Finish(() => _completion.TrySetException(exception));
+                }
+            }
+
+            public void TryFail(Exception exception)
+            {
+                if (Interlocked.CompareExchange(ref _terminal, 1, 0) != 0) return;
+                Finish(() => _completion.TrySetException(exception));
+            }
+
+            private void TryCancel()
+            {
+                if (Interlocked.CompareExchange(ref _terminal, 1, 0) != 0) return;
+                Finish(() => _completion.TrySetCanceled(_cancellationToken));
+            }
+
+            private void TryTimeout()
+            {
+                TryFail(new TimeoutException("Request timeout: " + _id));
+            }
+
+            private void Finish(Action complete)
+            {
+                ((ICollection<KeyValuePair<string, IPendingRequest>>)_owner)
+                    .Remove(new KeyValuePair<string, IPendingRequest>(_id, this));
+                try
+                {
+                    complete();
+                }
+                finally
+                {
+                    ScheduleCleanup();
+                }
+            }
+
+            private void ScheduleCleanup()
+            {
+                if (Volatile.Read(ref _terminal) == 0 || Volatile.Read(ref _initialized) == 0 ||
+                    Interlocked.Exchange(ref _cleanupScheduled, 1) != 0)
+                    return;
+
+                ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    _cancellationRegistration.Dispose();
+                    _timeoutTimer?.Dispose();
+                });
             }
         }
     }

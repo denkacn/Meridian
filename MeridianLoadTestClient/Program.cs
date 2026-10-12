@@ -18,6 +18,9 @@ internal static class Program
     {
         var options = LoadOptions.Parse(args);
 
+        if (options.Operation == LoadOperation.Completion)
+            return await RequestCompletionLoad.RunAsync(options).ConfigureAwait(false);
+
         Console.WriteLine("Meridian load test");
         Console.WriteLine($"Target: {options.Host}:{options.Port}");
         Console.WriteLine($"Clients: {options.Clients}; duration: {options.Duration}; warmup: {options.Warmup}; operation: {options.Operation}; timeout: {options.Timeout}");
@@ -348,6 +351,7 @@ internal sealed class LoadClient :
 
     public void Dispose()
     {
+        _networkBus.CancelPendingRequests();
         _clientPeer.ClientConnectionStatusChanged -= OnConnectionStatusChanged;
         _clientPeer.ClientConnected -= OnConnected;
         _clientPeer.Discard();
@@ -358,6 +362,10 @@ internal sealed class LoadClient :
         if (status == NetworkClientConnectionStatus.Connected)
         {
             _connected.TrySetResult(true);
+        }
+        else if (status == NetworkClientConnectionStatus.Disconnected)
+        {
+            _networkBus.CancelPendingRequests();
         }
     }
 
@@ -406,7 +414,8 @@ internal enum LoadOperation
     Sum,
     Mix,
     UdpReliable,
-    UdpUnreliable
+    UdpUnreliable,
+    Completion
 }
 
 internal sealed class LoadOptions
@@ -505,7 +514,7 @@ internal sealed class LoadOptions
         Console.WriteLine("  MeridianLoadTestClient --host 192.168.0.20 --port 4555 --clients 64 --duration-sec 30 --operation mix");
         Console.WriteLine();
         Console.WriteLine("Options:");
-        Console.WriteLine("  --operation ping|echo|sum|mix|udp-reliable|udp-unreliable");
+        Console.WriteLine("  --operation ping|echo|sum|mix|udp-reliable|udp-unreliable|completion");
         Console.WriteLine("  --payload-size <bytes>     Used by echo/mix.");
         Console.WriteLine("  --timeout-ms <ms>");
         Environment.Exit(0);

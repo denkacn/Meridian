@@ -4,6 +4,7 @@ namespace MeridianTestContracts
     {
         Ping = 1,
         Echo = 2,
-        Sum = 3
+        Sum = 3,
+        Delay = 4
     }
 }

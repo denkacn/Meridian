@@ -14,6 +14,9 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        if (args.Length == 1 && args[0] == "--request-completion-checks")
+            return await RequestCompletionChecks.RunAsync().ConfigureAwait(false);
+
         var host = args.Length > 0 ? args[0] : "127.0.0.1";
         var port = args.Length > 1 && int.TryParse(args[1], out var parsedPort) ? parsedPort : 4555;
 
@@ -214,6 +217,7 @@ internal sealed class MeridianTestClient :
 
     public void Dispose()
     {
+        _networkBus.CancelPendingRequests();
         _clientPeer.ClientConnectionStatusChanged -= OnConnectionStatusChanged;
         _clientPeer.ClientConnected -= OnConnected;
         _clientPeer.Discard();
@@ -224,6 +228,10 @@ internal sealed class MeridianTestClient :
         if (status == NetworkClientConnectionStatus.Connected)
         {
             _connected.TrySetResult(true);
+        }
+        else if (status == NetworkClientConnectionStatus.Disconnected)
+        {
+            _networkBus.CancelPendingRequests();
         }
     }
 
